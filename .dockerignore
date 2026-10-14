@@ -1,0 +1,17 @@
+.git
+.github
+.openbitfun
+.env
+.env.*
+*.tar
+*.tar.gz
+*.zip
+*.log
+__pycache__
+*.py[cod]
+chrome-profile
+muse2api-profiles
+data/*
+!data/.gitkeep
+!data/media/.gitkeep
+!data/downloads/.gitkeep

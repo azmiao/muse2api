@@ -1,0 +1,57 @@
+name: Build Docker image tar
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-image:
+    name: Build linux/amd64 image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build and export image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          tags: |
+            muse2api:latest
+            muse2api:${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/muse2api-${{ github.sha }}.tar
+          provenance: false
+          sbom: false
+
+      - name: Generate checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_tar="${RUNNER_TEMP}/muse2api-${GITHUB_SHA}.tar"
+          test -s "$image_tar"
+          sha256sum "$image_tar" | tee "${image_tar}.sha256"
+          docker load --input "$image_tar"
+          docker image inspect "muse2api:${GITHUB_SHA}" >/dev/null
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: muse2api-image-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/muse2api-${{ github.sha }}.tar
+            ${{ runner.temp }}/muse2api-${{ github.sha }}.tar.sha256
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
