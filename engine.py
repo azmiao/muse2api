@@ -105,6 +105,7 @@ class MuseEngine:
             f"--remote-debugging-port={self.cfg.cdp_port}",
             "--remote-allow-origins=*",
             f"--user-data-dir={self.cfg.profile_dir}",
+            *self.cfg.chromium_proxy_args(),
             "about:blank",
         ]
         # 尝试复用已有健康 CDP

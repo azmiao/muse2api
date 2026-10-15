@@ -1,11 +1,69 @@
 """muse2api 配置。"""
 from __future__ import annotations
 
+import json
 import os
 import shutil
+import threading
 from dataclasses import dataclass, field
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 _DEFAULT_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_DEFAULT_PROXY_BYPASS = "127.0.0.1,localhost,::1"
+_PROXY_SCHEMES = {"http", "https", "socks4", "socks5", "socks5h"}
+
+
+def _proxy_host_port(parsed) -> str:
+    host = parsed.hostname or ""
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return f"{host}:{parsed.port}" if parsed.port else host
+
+
+def _parse_proxy_url(value: str) -> tuple[str, str, str]:
+    """Return a credential-free proxy URL and its optional credentials."""
+    raw = str(value or "").strip()
+    if not raw:
+        return "", "", ""
+    parsed = urlsplit(raw)
+    scheme = parsed.scheme.lower()
+    if scheme not in _PROXY_SCHEMES:
+        raise ValueError("代理协议必须是 http、https、socks4、socks5 或 socks5h")
+    if not parsed.hostname:
+        raise ValueError("代理地址缺少主机名")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("代理端口无效") from exc
+    if not port or not 1 <= port <= 65535:
+        raise ValueError("代理端口必须是 1-65535")
+    if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+        raise ValueError("代理地址不能包含路径、查询参数或片段")
+    base = urlunsplit((scheme, _proxy_host_port(parsed), "", "", ""))
+    return base, unquote(parsed.username or ""), unquote(parsed.password or "")
+
+
+def _proxy_url_with_auth(base: str, username: str, password: str) -> str:
+    if not base:
+        return ""
+    parsed = urlsplit(base)
+    host_port = _proxy_host_port(parsed)
+    auth = ""
+    if username:
+        auth = quote(username, safe="")
+        if password:
+            auth += ":" + quote(password, safe="")
+        auth += "@"
+    return urlunsplit((parsed.scheme, auth + host_port, "", "", ""))
+
+
+def _normalize_bypass(value: str | None) -> str:
+    items = []
+    for item in (value or "").replace(";", ",").split(","):
+        item = item.strip()
+        if item and item not in items:
+            items.append(item)
+    return ",".join(items) or _DEFAULT_PROXY_BYPASS
 
 
 def _load_dotenv():
@@ -118,6 +176,13 @@ class Config:
     keepalive_disabled_accounts: bool = field(
         default_factory=lambda: _env("MUSE2API_KEEPALIVE_DISABLED_ACCOUNTS", "0").strip() != "0")
 
+    _proxy_lock: threading.RLock = field(default_factory=threading.RLock,
+                                         init=False, repr=False)
+    _proxy_state: dict | None = field(default=None, init=False, repr=False)
+
+    def __post_init__(self):
+        self.apply_proxy_environment()
+
     @property
     def data_dir(self) -> str:
         return os.path.join(self.base_dir, "data")
@@ -142,6 +207,136 @@ class Config:
     @property
     def tasks_file(self) -> str:
         return os.path.join(self.data_dir, "tasks.json")
+
+    @property
+    def proxy_file(self) -> str:
+        return os.path.join(self.data_dir, "proxy.json")
+
+    def _env_proxy_state(self) -> dict:
+        """兼容已有 HTTP_PROXY/HTTPS_PROXY 环境变量。"""
+        raw = (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or
+               os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") or
+               os.environ.get("ALL_PROXY") or os.environ.get("all_proxy") or "")
+        try:
+            url, username, password = _parse_proxy_url(raw)
+        except ValueError:
+            url, username, password = "", "", ""
+        return {
+            "enabled": bool(url),
+            "url": url,
+            "username": username,
+            "password": password,
+            "bypass": _normalize_bypass(os.environ.get("NO_PROXY") or
+                                         os.environ.get("no_proxy")),
+        }
+
+    def _read_proxy_state(self) -> dict:
+        if not os.path.isfile(self.proxy_file):
+            return self._env_proxy_state()
+        try:
+            with open(self.proxy_file, encoding="utf-8") as f:
+                raw = json.load(f)
+            if not isinstance(raw, dict):
+                raise ValueError("代理配置必须是 JSON 对象")
+            url, embedded_user, embedded_password = _parse_proxy_url(raw.get("url", ""))
+            username = str(raw.get("username", "") or embedded_user)
+            password = str(raw.get("password", "") or embedded_password)
+            return {
+                "enabled": bool(raw.get("enabled", False)) and bool(url),
+                "url": url,
+                "username": username,
+                "password": password,
+                "bypass": _normalize_bypass(raw.get("bypass")),
+            }
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            # 配置损坏时不要阻止服务启动，回退到环境变量配置。
+            return self._env_proxy_state()
+
+    def proxy_settings(self) -> dict:
+        with self._proxy_lock:
+            if self._proxy_state is None:
+                self._proxy_state = self._read_proxy_state()
+            return dict(self._proxy_state)
+
+    def public_proxy_settings(self) -> dict:
+        settings = self.proxy_settings()
+        return {
+            "enabled": settings["enabled"],
+            "url": settings["url"],
+            "username": settings["username"],
+            "username_configured": bool(settings["username"]),
+            "password_configured": bool(settings["password"]),
+            "bypass": settings["bypass"],
+        }
+
+    def update_proxy(self, *, enabled: bool, url: str = "", username: str = "",
+                     password: str = "", bypass: str = "",
+                     clear_password: bool = False) -> dict:
+        old = self.proxy_settings()
+        normalized_url, embedded_user, embedded_password = _parse_proxy_url(url)
+        username = str(username or embedded_user).strip()
+        if clear_password:
+            password = ""
+        elif not password:
+            password = embedded_password or old["password"]
+        if not username:
+            password = ""
+        if enabled and not normalized_url:
+            raise ValueError("启用代理时必须填写代理地址")
+        state = {
+            "enabled": bool(enabled) and bool(normalized_url),
+            "url": normalized_url,
+            "username": username,
+            "password": str(password),
+            "bypass": _normalize_bypass(bypass),
+        }
+        self.ensure_dirs()
+        temp_file = self.proxy_file + ".tmp"
+        with self._proxy_lock:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False, indent=2)
+                f.write("\\n")
+            try:
+                os.chmod(temp_file, 0o600)
+            except OSError:
+                pass
+            os.replace(temp_file, self.proxy_file)
+            self._proxy_state = state
+            self._apply_proxy_environment(state)
+        return dict(state)
+
+    def _apply_proxy_environment(self, settings: dict):
+        proxy = ""
+        if settings.get("enabled"):
+            proxy = _proxy_url_with_auth(settings.get("url", ""),
+                                         settings.get("username", ""),
+                                         settings.get("password", ""))
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+            os.environ[key] = proxy
+            os.environ[key.lower()] = proxy
+        bypass = _normalize_bypass(settings.get("bypass"))
+        os.environ["NO_PROXY"] = bypass
+        os.environ["no_proxy"] = bypass
+
+    def apply_proxy_environment(self):
+        """将代理配置应用到 requests、urllib 和 websocket-client 的环境变量。"""
+        with self._proxy_lock:
+            if self._proxy_state is None:
+                self._proxy_state = self._read_proxy_state()
+            self._apply_proxy_environment(self._proxy_state)
+
+    def chromium_proxy_args(self) -> list[str]:
+        settings = self.proxy_settings()
+        if not settings["enabled"] or not settings["url"]:
+            return []
+        parsed = urlsplit(settings["url"])
+        scheme = "socks5" if parsed.scheme == "socks5h" else parsed.scheme
+        proxy_url = urlunsplit((scheme, parsed.netloc, "", "", ""))
+        args = [f"--proxy-server={proxy_url}"]
+        bypass = settings["bypass"].replace(",", ";")
+        if bypass:
+            args.append(f"--proxy-bypass-list={bypass}")
+        return args
 
     def ensure_dirs(self):
         for d in (self.base_dir, self.data_dir, self.media_dir, self.download_dir,

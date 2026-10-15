@@ -9,6 +9,7 @@ OpenAI 兼容:
 
 管理（前端账号池管理页面在 GET /）:
   GET    /admin/status
+  GET    /admin/proxy  |  PUT /admin/proxy  |  POST /admin/proxy/test
   GET    /admin/accounts
   POST   /admin/accounts            （单条 / 批量文本 / 批量数组）
   PATCH  /admin/accounts/{id}       （改标签、启用/禁用）
@@ -36,6 +37,7 @@ import re
 import threading
 import time
 import uuid
+import urllib.request
 import zipfile
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
@@ -70,7 +72,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 app.add_middleware(CORSMiddleware,
                    allow_origins=["*"],
-                   allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+                   allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
                    allow_headers=["*"],
                    expose_headers=["*"],
                    max_age=600)
@@ -1573,6 +1575,63 @@ def admin_status(_=Depends(auth)):
                    "host": CFG.host, "port": CFG.port,
                    "public_base": base},
     }
+
+
+# ------------------------- 管理：代理配置 -------------------------
+@app.get("/admin/proxy")
+def get_proxy(_=Depends(auth)):
+    return CFG.public_proxy_settings()
+
+
+@app.put("/admin/proxy")
+def update_proxy(payload: dict = Body(...), _=Depends(auth)):
+    try:
+        enabled = payload.get("enabled", False)
+        if not isinstance(enabled, bool):
+            raise ValueError("enabled 必须是布尔值")
+        with GEN_LOCK:
+            was_running = bool(engine.proc and engine.proc.poll() is None)
+            settings = CFG.update_proxy(
+                enabled=enabled,
+                url=str(payload.get("url", "") or ""),
+                username=str(payload.get("username", "") or ""),
+                password=str(payload.get("password", "") or ""),
+                bypass=str(payload.get("bypass", "") or ""),
+                clear_password=bool(payload.get("clear_password", False)),
+            )
+            if was_running:
+                engine.stop()
+        return {
+            **CFG.public_proxy_settings(),
+            "ok": True,
+            "browser_restarted": was_running,
+            "message": "代理配置已保存；下次浏览器启动时生效" if was_running
+                       else "代理配置已保存",
+        }
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(500, f"保存代理配置失败: {exc}") from exc
+
+
+@app.post("/admin/proxy/test")
+def test_proxy(_=Depends(auth)):
+    settings = CFG.proxy_settings()
+    if not settings["enabled"] or not settings["url"]:
+        raise HTTPException(400, "代理未启用，请先保存代理地址和开关")
+    started = time.perf_counter()
+    try:
+        request = urllib.request.Request(CFG.site_url, headers={"User-Agent": "muse2api-proxy-test"})
+        with urllib.request.urlopen(request, timeout=12) as response:
+            status = getattr(response, "status", None) or response.getcode()
+        return {"ok": True, "status_code": status,
+                "elapsed_ms": round((time.perf_counter() - started) * 1000),
+                "message": "代理连通正常"}
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"ok": False,
+                             "elapsed_ms": round((time.perf_counter() - started) * 1000),
+                             "message": f"代理测试失败: {type(exc).__name__}"},
+                            status_code=502)
 
 
 # ------------------------- 管理：账号池 -------------------------

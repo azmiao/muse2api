@@ -270,6 +270,7 @@
     <button data-t="cookie">获取 Cookie</button>
     <button data-t="tasks">任务记录</button>
     <button data-t="media">媒体库</button>
+    <button data-t="proxy">代理配置</button>
     <button data-t="play">接口测试</button>
     <button data-t="docs">接入文档</button>
   </nav>
@@ -518,6 +519,56 @@
         <b>什么时候要重导？</b>账号列表里「有效期」变成
         <span class="badge bad">已过期</span>、状态变成
         <span class="badge bad">异常</span>，或出现「缺核心」标记时。
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 代理配置 ==================== -->
+  <section class="tab" id="tab-proxy">
+    <div class="card">
+      <h3>代理配置 <span class="tag" id="proxyBadge">未加载</span></h3>
+      <div class="hint">
+        代理会同时用于 Python 网络请求、远程图片下载和 Chromium 浏览器访问 muse.ai。
+        修改并保存后，正在运行的浏览器会自动停止，下次任务启动时使用新配置。
+      </div>
+      <div class="row">
+        <div style="max-width:220px">
+          <label>代理开关</label>
+          <label style="display:flex;align-items:center;gap:8px;color:var(--text);cursor:pointer">
+            <input type="checkbox" id="proxyEnabled"> 启用代理
+          </label>
+        </div>
+        <div style="flex:3">
+          <label>代理地址</label>
+          <input type="text" id="proxyUrl" placeholder="例如 http://127.0.0.1:7890">
+        </div>
+        <div>
+          <label>用户名（可选）</label>
+          <input type="text" id="proxyUsername" autocomplete="off" placeholder="留空表示无认证">
+        </div>
+        <div>
+          <label>密码（可选）</label>
+          <input type="password" id="proxyPassword" autocomplete="new-password" placeholder="留空则保留原密码">
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;align-items:center">
+        <div style="flex:3">
+          <label>不走代理地址</label>
+          <input type="text" id="proxyBypass" placeholder="127.0.0.1,localhost,::1">
+        </div>
+        <div style="min-width:220px">
+          <label style="display:flex;align-items:center;gap:8px;color:var(--text);cursor:pointer">
+            <input type="checkbox" id="proxyClearPassword"> 清除已保存密码
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;min-width:270px">
+          <button onclick="saveProxy(event)">保存代理配置</button>
+          <button class="ghost" onclick="testProxy()">测试代理连通性</button>
+        </div>
+      </div>
+      <div class="result" id="proxyResult"></div>
+      <div class="hint" style="margin-top:12px;margin-bottom:0">
+        支持 http、https、socks4、socks5、socks5h。页面不会回显代理密码；如果密码框留空，保存时会继续使用原密码。
       </div>
     </div>
   </section>
@@ -862,9 +913,68 @@ document.querySelectorAll('nav.tabs button').forEach(b => {
     $('tab-' + b.dataset.t).classList.add('active');
     if (b.dataset.t === 'tasks') loadTasks();
     if (b.dataset.t === 'media') loadMedia();
+    if (b.dataset.t === 'proxy') loadProxy();
     if (b.dataset.t === 'cookie') $('cmdText').textContent = buildCmd($('inBase').value);
   };
 });
+
+/* ================= 代理配置 ================= */
+async function loadProxy(){
+  try{
+    const d = await api('/admin/proxy');
+    $('proxyEnabled').checked = !!d.enabled;
+    $('proxyUrl').value = d.url || '';
+    $('proxyUsername').value = d.username || '';
+    $('proxyPassword').value = '';
+    $('proxyPassword').placeholder = d.password_configured ? '已保存，留空则保留原密码' : '留空表示无认证';
+    $('proxyBypass').value = d.bypass || '127.0.0.1,localhost,::1';
+    $('proxyClearPassword').checked = false;
+    $('proxyBadge').className = 'tag';
+    $('proxyBadge').textContent = d.enabled ? '已启用' : '未启用';
+  }catch(e){
+    if ($('proxyBadge')) $('proxyBadge').textContent = '待鉴权';
+  }
+}
+
+async function saveProxy(ev){
+  const btn = ev && ev.target;
+  if (btn) btn.disabled = true;
+  try{
+    const d = await api('/admin/proxy', {method:'PUT', body:JSON.stringify({
+      enabled: $('proxyEnabled').checked,
+      url: $('proxyUrl').value.trim(),
+      username: $('proxyUsername').value.trim(),
+      password: $('proxyPassword').value,
+      bypass: $('proxyBypass').value.trim(),
+      clear_password: $('proxyClearPassword').checked
+    })});
+    $('proxyPassword').value = '';
+    $('proxyClearPassword').checked = false;
+    $('proxyResult').className = 'result show ok';
+    $('proxyResult').textContent = d.message || '代理配置已保存';
+    $('proxyBadge').textContent = d.enabled ? '已启用' : '未启用';
+    $('proxyPassword').placeholder = d.password_configured ? '已保存，留空则保留原密码' : '留空表示无认证';
+  }catch(e){
+    $('proxyResult').className = 'result show bad';
+    $('proxyResult').textContent = e.message;
+  }finally{
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function testProxy(){
+  const box = $('proxyResult');
+  box.className = 'result show';
+  box.textContent = '正在测试当前已保存的代理配置…';
+  try{
+    const d = await api('/admin/proxy/test', {method:'POST'});
+    box.className = 'result show ok';
+    box.textContent = `${d.message || '代理连通正常'}（HTTP ${d.status_code}，耗时 ${d.elapsed_ms} ms）`;
+  }catch(e){
+    box.className = 'result show bad';
+    box.textContent = e.message;
+  }
+}
 
 /* ================= 接入信息 / API Key ================= */
 let realKey = '';
