@@ -1,4 +1,4 @@
-name: Build Docker image tar
+name: Build and publish Docker image
 
 on:
   push:
@@ -9,11 +9,18 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: docker-image-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-image:
     name: Build linux/amd64 image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Check out source
@@ -31,6 +38,9 @@ jobs:
           tags: |
             muse2api:latest
             muse2api:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
           outputs: type=docker,dest=${{ runner.temp }}/muse2api-${{ github.sha }}.tar
           provenance: false
           sbom: false
@@ -55,3 +65,43 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
+
+      - name: Log in to GitHub Container Registry
+        id: ghcr-login
+        shell: bash
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin
+
+      - name: Publish and verify GHCR image
+        shell: bash
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${REPOSITORY,,}"
+          docker tag "muse2api:${GITHUB_SHA}" "${image}:${GITHUB_SHA}"
+          docker push "${image}:${GITHUB_SHA}"
+          docker buildx imagetools inspect "${image}:${GITHUB_SHA}"
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            docker tag "muse2api:${GITHUB_SHA}" "${image}:latest"
+            docker push "${image}:latest"
+            docker buildx imagetools inspect "${image}:latest"
+          fi
+          {
+            echo '## Docker image published'
+            echo
+            echo "- Commit image: \`${image}:${GITHUB_SHA}\`"
+            if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+              echo "- Latest image: \`${image}:latest\`"
+            fi
+            echo '- Platform: linux/amd64'
+            echo '- Docker tar and SHA-256 checksum are available in workflow artifacts.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log out of GitHub Container Registry
+        if: ${{ always() && steps.ghcr-login.outcome == 'success' }}
+        run: docker logout ghcr.io
