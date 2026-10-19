@@ -860,11 +860,19 @@ async function api(path, opts){
       else if (data.error) msg = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
     }
     if (!msg && txt) {
-      if (txt.includes('502 Bad Gateway') || txt.includes('nginx')) {
-        msg = '反向代理超时 (Nginx 502 Bad Gateway，通常是 Nginx proxy_read_timeout 默认 60s 太短，请将反代超时调至 600s)';
-      } else {
-        msg = txt.slice(0, 150);
-      }
+      const statusHints = {
+        400: '请求参数有误 (HTTP 400)，请检查输入内容',
+        403: '服务器拒绝了该请求 (HTTP 403)，请确认登录状态与访问权限',
+        404: '接口不存在 (HTTP 404)，可能是版本不匹配，请刷新页面或更新服务端',
+        405: '服务端不支持该请求方式 (HTTP 405)，请刷新页面或更新服务端',
+        413: '提交内容过大 (HTTP 413)，请减少本次提交的数据量后重试',
+        429: '请求过于频繁 (HTTP 429)，请稍等片刻后重试',
+        500: '服务端内部错误 (HTTP 500)，请稍后重试或查看服务器日志',
+        502: '服务返回网关错误 (HTTP 502)，请稍后重试；持续失败请查看服务器日志',
+        503: '服务暂时不可用 (HTTP 503)，可能正在重启或过载，请稍后重试',
+        504: '网关超时 (HTTP 504)，上游处理时间过长，请稍后重试或调整反代超时设置',
+      };
+      msg = statusHints[r.status] || ('服务返回了无法解析的响应 (HTTP ' + r.status + ')，请稍后重试或查看服务器日志');
     }
     throw new Error(msg || ('HTTP ' + r.status));
   }

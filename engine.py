@@ -20,6 +20,7 @@ import subprocess
 import threading
 import time
 import uuid
+import unicodedata
 
 from cdp import CDP, http_json
 
@@ -501,85 +502,140 @@ class MuseEngine:
         "return JSON.stringify({x:Math.round(r.x+r.width/2),"
         "y:Math.round(r.y+r.height/2)});})()")
 
+    _QUOTA_SETTINGS_JS = r"""(() => {
+        const visible = e => e.getClientRects().length > 0
+            && getComputedStyle(e).visibility !== 'hidden';
+        const labels = ['Settings', '設定', '设置'];
+        const b = [...document.querySelectorAll('[data-testid="hatch-dock-more"]')].find(visible)
+            || [...document.querySelectorAll('button,[role=button]')].find(e =>
+                visible(e) && labels.includes((e.getAttribute('aria-label') || '').trim()));
+        if (!b) return null;
+        const r = b.getBoundingClientRect();
+        return JSON.stringify({x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)});
+    })()"""
+
+    _QUOTA_MENU_JS = r"""(() => {
+        const visible = e => e.getClientRects().length > 0
+            && getComputedStyle(e).visibility !== 'hidden';
+        const labels = ['Settings', '設定', '设置'];
+        const exact = e => labels.includes((e.textContent || '').trim());
+        // Menu items include a shortcut suffix (for example 設定Ctrl+,).
+        const b = [...document.querySelectorAll('[role=menuitem]')].find(e =>
+            visible(e) && (exact(e) || [...e.querySelectorAll('span,div')].some(exact)))
+            || [...document.querySelectorAll('[role=menu] button,[role=menu] span,[role=menu] div')]
+                .find(e => visible(e) && exact(e));
+        if (!b) return null;
+        const r = b.getBoundingClientRect();
+        return JSON.stringify({x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)});
+    })()"""
+
+    _QUOTA_DIALOG_JS = r"""(() => {
+        const d = [...document.querySelectorAll('[role=dialog],[aria-modal=true]')]
+            .find(e => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden');
+        return d ? (d.innerText || '') : '';
+    })()"""
+
+    def _quota_click(self, expr: str, error: str, timeout: float = 8.0):
+        deadline = time.monotonic() + timeout
+        while True:
+            raw = self.page.js(expr)
+            if raw:
+                pt = json.loads(raw)
+                self._click_point(pt['x'], pt['y'])
+                return
+            if time.monotonic() >= deadline:
+                raise MuseGenerationError(error)
+            time.sleep(0.15)
+
+    def _dismiss_quota_ui(self):
+        # A failed lookup can leave a menu open; clean up menus and dialogs.
+        for _ in range(2):
+            for typ in ('keyDown', 'keyUp'):
+                self.page.send('Input.dispatchKeyEvent',
+                               {'type': typ, 'key': 'Escape', 'code': 'Escape',
+                                'windowsVirtualKeyCode': 27, 'nativeVirtualKeyCode': 27})
+            time.sleep(0.1)  # Let the UI finish closing before the next interaction.
+
     def quota(self, cookies: dict, expires: dict | None = None,
               account_id: str | None = None) -> dict:
-        """打开 Settings 面板读额度。返回结构化 dict；读不到时 raise。"""
+        """Read the account's quota without depending on the browser UI language."""
         self.ensure_page(cookies, expires, account_id=account_id)
-        p = self.page
-        time.sleep(1)
-
-        # 1) 点左下角 Settings 按钮（aria-label=Settings）
-        raw = p.js(self._CLICK_JS % json.dumps('button[aria-label="Settings"]'))
-        if not raw:
-            raise MuseGenerationError("找不到 Settings 按钮")
-        pt = json.loads(raw)
-        self._click_point(pt["x"], pt["y"])
-        time.sleep(1.6)
-
-        # 2) 点弹出的菜单里文本为 Settings 的项
-        raw = p.js(
-            "(function(){"
-            "var els=[...document.querySelectorAll('div,span,li,[role=menuitem],button')]"
-            ".filter(function(e){return e.offsetParent!==null"
-            "&&(e.textContent||'').trim()==='Settings'"
-            "&&e.getAttribute('aria-label')!=='Settings'"
-            "&&e.children.length<=3;});"
-            "if(!els.length)return null;"
-            "var el=els[els.length-1];var r=el.getBoundingClientRect();"
-            "return JSON.stringify({x:Math.round(r.x+r.width/2),"
-            "y:Math.round(r.y+r.height/2)});})()")
-        if not raw:
-            raise MuseGenerationError("Settings 菜单未弹出")
-        pt = json.loads(raw)
-        self._click_point(pt["x"], pt["y"])
-        time.sleep(3.0)
-
-        # 3) 读设置面板文本
-        txt = ""
-        for _ in range(6):
-            txt = p.js(
-                "(function(){var d=document.querySelector('[role=dialog],[aria-modal=true]');"
-                "return d?(d.innerText||''):'';})()") or ""
-            if "Usage" in txt or "used" in txt:
-                break
-            time.sleep(1.2)
-
-        # 4) 关闭面板（Escape）
-        for t in ("keyDown", "keyUp"):
-            p.send("Input.dispatchKeyEvent",
-                   {"type": t, "key": "Escape", "code": "Escape",
-                    "windowsVirtualKeyCode": 27, "nativeVirtualKeyCode": 27})
-        time.sleep(0.5)
-
-        return self._parse_quota(txt)
+        self._dismiss_quota_ui()
+        try:
+            self._quota_click(self._QUOTA_SETTINGS_JS, '找不到设置入口（Settings／設定／设置）')
+            self._quota_click(self._QUOTA_MENU_JS, '设置菜单未出现可识别的设置项')
+            deadline = time.monotonic() + 12.0
+            while True:
+                parsed = self._parse_quota(self.page.js(self._QUOTA_DIALOG_JS) or '')
+                if parsed['found']:
+                    return parsed
+                if time.monotonic() >= deadline:
+                    raise MuseGenerationError('额度面板未读到有效用量；旧缓存未覆盖')
+                time.sleep(0.2)
+        finally:
+            try:
+                self._dismiss_quota_ui()
+            except Exception:
+                log.warning('关闭额度设置面板失败')
 
     @staticmethod
     def _parse_quota(txt: str) -> dict:
-        """从设置面板文本解析额度字段。"""
-        lines = [ln.strip() for ln in (txt or "").split("\n") if ln.strip()]
-        out: dict = {"raw": "\n".join(lines[:40])}
-        # 计划名：Free plan / xxx plan
+        """Parse English, traditional Chinese and simplified Chinese usage text."""
+        normalized = unicodedata.normalize('NFKC', txt or '')
+        lines = [ln.strip() for ln in normalized.splitlines() if ln.strip()]
+        # Avoid unrelated account/profile text before the Usage section.
+        start = next((i + 1 for i, ln in enumerate(lines)
+                      if ln.lower() in ('usage', '用量', '使用量')), 0)
+        lines = lines[start:]
+        end = next((i for i, ln in enumerate(lines)
+                    if ln.lower() in ('language', '语言', '語言')), len(lines))
+        lines = lines[:end]
+        out: dict = {'raw': '\n'.join(lines[:40])}
         for ln in lines:
-            m = re.match(r"^(.+?)\s*plan$", ln, re.I)
-            if m:
-                out["plan"] = ln
+            if re.fullmatch(r'.{1,60}?(?:\s+plan|計劃|计划|方案)', ln, re.I):
+                out['plan'] = ln
                 break
-        # Weekly limit resets on Sep 30
-        m = re.search(r"Weekly limit resets? on (.+)", txt or "")
-        if m:
-            out["weekly_reset"] = m.group(1).strip()
-        # 周用量：第一个 "N% used"（出现在 plan 行之后）
-        m = re.search(r"(\d+)%\s*used", txt or "")
-        if m:
-            out["weekly_used_pct"] = int(m.group(1))
-        # 额外代币："0% used (2B tokens left)"
-        m = re.search(r"(\d+)%\s*used\s*\(([^)]+)\)", txt or "")
-        if m:
-            out["extra_used_pct"] = int(m.group(1))
-            out["extra_left"] = m.group(2).strip()
-        if "Never expires" in (txt or ""):
-            out["extra_expires"] = "never"
-        out["found"] = bool(out.get("plan") or "weekly_used_pct" in out)
+        text = '\n'.join(lines)
+        reset = re.search(r'Weekly limit resets? on ([^\n]+)', text, re.I)
+        if not reset:
+            reset = re.search(
+                r'(?:每(?:週|周|星期)|週|周)(?:上限|限額|限额|額度|额度)'
+                r'(?:會|会|將|将)?(?:於|于|在)\s*([^\n]+?)\s*(?:重設|重置)', text)
+        if reset:
+            out['weekly_reset'] = reset.group(1).strip()
+
+        extra_at = next((i for i, ln in enumerate(lines) if re.match(
+            r'^(?:(?:Additional|Extra)\s+tokens|(?:額外|额外)(?:的)?(?:符元|符記|代幣|代币|令牌|憑證|凭证|tokens))',
+            ln, re.I)), len(lines))
+
+        def percentage(line):
+            m = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:used\b|已(?:使)?用)', line, re.I)
+            if not m:
+                m = re.search(r'已(?:使)?用\s*(\d+(?:\.\d+)?)\s*%', line)
+            if not m:
+                return None
+            value = float(m.group(1))
+            if not 0 <= value <= 100:
+                return None
+            return int(value) if value.is_integer() else value
+
+        for ln in lines[:extra_at]:
+            value = percentage(ln)
+            if value is not None:
+                out['weekly_used_pct'] = value
+                break
+        for ln in lines[extra_at:]:
+            value = percentage(ln)
+            if value is not None:
+                out['extra_used_pct'] = value
+                left = re.search(r'\(([^)]+)\)', ln)
+                if left:
+                    out['extra_left'] = left.group(1).strip()
+                break
+        if re.search(r'Never expires|永不過期|永不过期', text, re.I):
+            out['extra_expires'] = 'never'
+        # A plan label alone is not a successful quota read. Preserve old cache.
+        out['found'] = 'weekly_used_pct' in out
         return out
 
     # ---------------- 附件（生成结果） ----------------

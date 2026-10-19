@@ -267,6 +267,7 @@ curl -X POST "http://localhost:18610/v1/images/generations" \
 - 🌟 **[@djs-91](https://github.com/djs-91)** (PR [#9](https://github.com/czg86389-hub/muse2api/pull/9)) —— 修复未配置 `MUSE2API_PUBLIC_BASE` 时 Base URL 坍缩导致管理页地址解析异常
 - 🌟 **[@toby-bridges](https://github.com/toby-bridges)** (PR [#8](https://github.com/czg86389-hub/muse2api/pull/8)) —— 适配 muse.ai 现网中文 UI、修复附件上传确认与 Stop 状态误判、强化视频成品与封面防误选
 - 🌟 **[@LF2023](https://github.com/LF2023)** (PR [#18](https://github.com/czg86389-hub/muse2api/pull/18)) —— 修复视频生成仅凭 tid 命中封面静帧问题，规范预期匹配与防误选机制
+- 🌟 **[@wuliaolaozi](https://github.com/wuliaolaozi)** (PR [#27](https://github.com/czg86389-hub/muse2api/pull/27)) —— 适配中英文额度查询，修复额度读取与管理页错误提示
 
 欢迎大家提交 PR 与 Issue，共同把项目打磨得更强更好用！
 
