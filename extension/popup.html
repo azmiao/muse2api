@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<title>Muse2API Cookie 导入</title>
 <style>
   :root{color-scheme:dark}
   *{box-sizing:border-box}
@@ -13,6 +14,8 @@
   }
   h1{font-size:15px;margin:0 0 3px;display:flex;align-items:center;gap:7px}
   h1 .dot{width:8px;height:8px;border-radius:50%;background:#4f8cff}
+  h1 .langsel{margin-left:auto;width:auto;padding:3px 6px;border-radius:6px;border:1px solid #30363d;
+    background:#161b22;color:#e6edf3;font-size:11.5px;font-weight:400;cursor:pointer}
   .sub{color:#8b949e;font-size:11.5px;margin:0 0 14px}
   label{display:block;font-size:11.5px;color:#8b949e;margin:11px 0 4px}
   input{
@@ -41,21 +44,26 @@
 </style>
 </head>
 <body>
-  <h1><span class="dot"></span>Muse2API Cookie 导入</h1>
-  <p class="sub">把当前浏览器里 muse.ai 的登录态，一键同步到你的 muse2api 服务。</p>
+  <h1><span class="dot"></span><span data-i18n-text>Muse2API Cookie 导入</span>
+    <select id="langSel" class="langsel" title="Language / 语言">
+      <option value="zh">中文</option>
+      <option value="en">English</option>
+    </select>
+  </h1>
+  <p class="sub" data-i18n-text>把当前浏览器里 muse.ai 的登录态，一键同步到你的 muse2api 服务。</p>
 
-  <label>服务地址（BASE URL）</label>
+  <label data-i18n-text>服务地址（BASE URL）</label>
   <input id="base" placeholder="http://your-server-ip:18610" spellcheck="false">
 
   <label>API Key</label>
   <input id="key" placeholder="m2a_..." spellcheck="false">
 
-  <label>账号标签（可留空）</label>
+  <label data-i18n-text>账号标签（可留空）</label>
   <input id="label" placeholder="例如 muse-main" spellcheck="false">
 
-  <button id="go">读取并导入</button>
+  <button id="go" data-i18n-text>读取并导入</button>
 
-  <div class="steps">
+  <div class="steps" data-i18n="steps">
     <b>用之前先确认两件事：</b><br>
     1. 你已经在<b>这个浏览器</b>里登录了 <a href="https://muse.ai/" target="_blank"
        style="color:#4f8cff">muse.ai</a>（能看到聊天界面）。<br>
@@ -64,7 +72,7 @@
 
   <div id="log"></div>
 
-  <div class="foot">
+  <div class="foot" data-i18n="foot">
     本扩展只做一件事：用浏览器的 <code>chrome.cookies</code> 接口读取 muse.ai 的
     Cookie（能读到 httpOnly 的那些），POST 到你填的服务地址。
     不收集、不上传到任何第三方服务器。

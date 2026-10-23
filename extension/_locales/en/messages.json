@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "Muse2API Cookie Import",
+    "description": "Extension name"
+  },
+  "extDesc": {
+    "message": "Import your muse.ai login cookies into your muse2api service in one click. No Python or terminal needed.",
+    "description": "Extension description"
+  }
+}

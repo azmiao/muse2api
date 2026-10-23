@@ -29,7 +29,8 @@ log = logging.getLogger("muse2api")
 ATT_SEL = '[data-testid^="hatch-chat-attachment-presentation-"]'
 
 # 决定账号生死的核心 cookie（缺失或过期 = 会话失效）
-ESSENTIAL_COOKIES = ("hatch_sess", "hatch_gw", "hatch_vml",
+# 注：hatch_gw 为网关路由缓存，会话生死主要依赖 hatch_sess 与 hatch_vml，缺 gw 亦可正常续签与生成
+ESSENTIAL_COOKIES = ("hatch_sess", "hatch_vml",
                      "hatch_native_auth_device")
 
 

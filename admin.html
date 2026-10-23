@@ -184,6 +184,7 @@
   .keybox .lbl{font-size:11.5px;color:var(--muted);padding-left:4px;white-space:nowrap}
   .keybox.ok .lbl{color:var(--ok)}
   .keybox.miss .lbl{color:var(--warn)}
+  .langsel{width:auto;flex:0 0 auto;background:var(--bg2);color:var(--text);border:1px solid var(--line2);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
   .updpill-alert{border-color:rgba(251,191,36,.8)!important;background:rgba(251,191,36,.15)!important;color:var(--warn)!important;animation:pulse 1.6s infinite}
 </style>
 </head>
@@ -214,6 +215,10 @@
         <input id="key" type="password" placeholder="粘贴 m2a_ 开头的密钥" autocomplete="off">
         <button class="ghost mini" onclick="saveKey()">保存</button>
       </span>
+      <select id="langSel" class="langsel" data-no-i18n onchange="setLang(this.value)" title="Language / 语言">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+      </select>
     </div>
   </div>
 </header>
@@ -244,7 +249,7 @@
       <a href="https://github.com/czg86389-hub/muse2api" target="_blank" class="tag" style="color:var(--accent)">czg86389-hub/muse2api ↗</a>
       <span id="repoBadge" class="badge info" style="margin-left:auto">检测中…</span>
     </h3>
-    <div class="hint" id="repoStatusDesc">正在实时对比本地版本与 GitHub 官方仓库最新版本…（在线升级自动保留 <code>.env</code> 密钥与 <code>data/</code> 账号池及媒体数据）</div>
+    <div class="hint" id="repoStatusDesc" data-i18n="repo-status-desc">正在实时对比本地版本与 GitHub 官方仓库最新版本…（在线升级自动保留 <code>.env</code> 密钥与 <code>data/</code> 账号池及媒体数据）</div>
     <div id="repoCommitsBox" style="margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:10px 14px;font-size:12.5px"></div>
     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button onclick="upgradeNow()" id="btnRepoPull">⚡ 一键从 GitHub 在线更新并重启</button>
@@ -255,7 +260,7 @@
 
   <div class="banner" id="authBanner">
     <span class="ic">🔑</span>
-    <div>
+    <div data-i18n="auth-banner">
       <b>需要先填入 API Key，页面才能读到数据</b><br>
       <span style="color:var(--muted)">
         API Key 是这个服务自己的「访问密码」，用来防止别人白用你的 Muse 账号额度。
@@ -302,7 +307,7 @@
           </div>
         </div>
       </div>
-      <div class="hint" style="margin:11px 0 0">
+      <div class="hint" style="margin:11px 0 0" data-i18n="model-names-hint">
         模型名：<code>muse-spark</code>（对话/代码）、<code>muse-image</code>（生图）、<code>muse-video</code>（生视频）。
         完整调用示例见「接入文档」页签。
       </div>
@@ -318,7 +323,7 @@
 
     <div class="card">
       <h3>添加账号 <span class="tag">支持批量</span></h3>
-      <div class="hint">
+      <div class="hint" data-i18n="add-account-hint">
         从浏览器复制 <b>muse.ai</b> 的 Cookie 字符串粘贴进来即可。关键 cookie：
         <code>hatch_sess</code>、<code>hatch_gw</code>、<code>hatch_vml</code>。
         批量导入时每行一个账号，格式 <code>标签 | cookie串</code>（标签可省略）。
@@ -349,10 +354,10 @@
           <button class="secondary" id="btnKeepaliveAll" onclick="keepaliveAll()" style="font-size:12px;padding:6px 14px">⚡ 一键保活所有账号</button>
         </div>
       </div>
-      <div class="hint">系统已开启<b>后台每 30 分钟静默保活</b>与<b>多账号公平轮转（LRU）</b>；「测试」会真实打开 muse.ai 验证会话。</div>
+      <div class="hint" data-i18n="keepalive-hint">系统已开启<b>后台每 30 分钟静默保活</b>与<b>多账号公平轮转（LRU）</b>；「测试」会真实打开 muse.ai 验证会话。</div>
       <div class="tblwrap"><table>
         <thead><tr>
-          <th>标签</th><th>账号 ID</th><th>状态</th><th>有效期</th><th>额度</th><th>启用</th><th>Cookie</th>
+          <th>标签</th><th>账号 ID</th><th>状态</th><th>有效期</th><th>额度</th><th data-i18n="col-enabled">启用</th><th>Cookie</th>
           <th>最后使用</th><th>备注</th><th style="min-width:250px">操作</th>
         </tr></thead>
         <tbody id="poolBody"><tr><td colspan="10" class="empty">加载中…</td></tr></tbody>
@@ -364,7 +369,7 @@
   <section class="tab" id="tab-cookie">
     <div class="card" style="border-color:rgba(52,211,153,.45)">
       <h3>方式一：浏览器扩展 <span class="tag">推荐 · 零命令行 · 全平台</span></h3>
-      <div class="hint">
+      <div class="hint" data-i18n="ext-why-hint">
         用一个浏览器小扩展，把你<b>自己电脑上已经登录好的 muse.ai 登录态</b>同步过来。
         不用装 Python、不用开终端、不用敲命令。<br>
         <b>为什么必须用扩展</b>：muse.ai 的 4 条核心 cookie 都带
@@ -376,7 +381,7 @@
         <div class="stepno">1</div>
         <div>
           <b>下载并解压扩展</b>
-          <div class="hint" style="margin:4px 0 9px">
+          <div class="hint" style="margin:4px 0 9px" data-i18n="ext-unzip-hint">
             解压到一个你不会删掉的目录，比如 <code>D:\muse2api-extension</code>。
           </div>
           <a class="btnlike" href="/admin/extension" download>⬇ 下载 muse2api-extension.zip</a>
@@ -392,7 +397,7 @@
           <div class="hint" style="margin:4px 0 9px">
             以 Chrome 为例（Edge / Brave / 360 极速 等 Chromium 内核浏览器步骤类似）：
           </div>
-          <ol class="olsteps">
+          <ol class="olsteps" data-i18n="ext-load-steps">
             <li>地址栏输入 <code>chrome://extensions</code> 回车</li>
             <li>打开右上角 <b>开发者模式</b> 开关</li>
             <li>点左上角 <b>加载已解压的扩展程序</b></li>
@@ -405,7 +410,7 @@
         <div class="stepno">3</div>
         <div>
           <b>登录 muse.ai，然后点扩展图标导入</b>
-          <div class="hint" style="margin:4px 0 9px">
+          <div class="hint" style="margin:4px 0 9px" data-i18n="ext-login-hint">
             先在你自己的浏览器里打开 <code>https://muse.ai/</code> 并登录
             （登录到能看到聊天界面为止），再点浏览器工具栏上的扩展图标，
             把下面两项填进去，点「读取并导入」。
@@ -432,12 +437,12 @@
 
     <div class="card">
       <h3>方式二：手动复制 <span class="tag">零安装 · 兜底</span></h3>
-      <div class="hint">
+      <div class="hint" data-i18n="manual-copy-hint">
         不想装扩展的话，可以手动把 cookie 串抠出来。关键是用
         <b>「网络」面板的请求标头</b>，而不是 Console —— 请求头里的
         <code>cookie:</code> 一行<b>包含 httpOnly 的那几条</b>，Console 读不到。
       </div>
-      <ol class="olsteps" style="margin-top:10px">
+      <ol class="olsteps" style="margin-top:10px" data-i18n="manual-copy-steps">
         <li>在你自己的浏览器里打开并登录 <code>https://muse.ai/</code>，停在聊天界面</li>
         <li>按 <kbd>F12</kbd> 打开开发者工具，切到 <b>网络 / Network</b> 面板</li>
         <li>按 <kbd>F5</kbd> 刷新页面，让请求列表出现内容</li>
@@ -447,7 +452,7 @@
             （从 <code>hatch_sess=</code> 开始，一直到行尾）</li>
         <li>粘到下面「方式三」的输入框里，点导入</li>
       </ol>
-      <div class="hint" style="margin-top:10px;color:var(--warn)">
+      <div class="hint" style="margin-top:10px;color:var(--warn)" data-i18n="manual-copy-warn">
         注意：是<b>请求标头</b>里的 <code>cookie:</code>，不是「响应标头」。
         响应标头里的 <code>set-cookie</code> 只有部分 cookie，会缺东西。
       </div>
@@ -470,7 +475,7 @@
         <button class="primary-lg" onclick="addAccount(true)">导入账号</button>
       </div>
 
-      <div class="hint" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+      <div class="hint" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)" data-i18n="cli-script-hint">
         如果你习惯命令行、或者想用独立浏览器登录（不碰日常浏览器），也可以用这个脚本。
         它只用 Python 标准库，<b>不需要 pip 安装任何东西</b>。
       </div>
@@ -502,11 +507,11 @@
         <tbody>
           <tr><td class="mono">hatch_sess</td><td>是</td><td><b style="color:var(--ok)">约 30 天</b></td><td>主会话，决定能不能登录</td></tr>
           <tr><td class="mono">hatch_gw</td><td>是</td><td><b style="color:var(--ok)">约 1 年</b></td><td>网关令牌</td></tr>
-          <tr><td class="mono">hatch_vml</td><td>是</td><td><b style="color:var(--bad)">约 2 天</b></td><td>短效校验令牌，<b>决定账号寿命</b></td></tr>
+          <tr><td class="mono">hatch_vml</td><td>是</td><td><b style="color:var(--bad)">约 2 天</b></td><td data-i18n="vml-role">短效校验令牌，<b>决定账号寿命</b></td></tr>
           <tr><td class="mono">hatch_native_auth_device</td><td>是</td><td><b style="color:var(--ok)">约 30 天</b></td><td>设备标识（匿名访客也有，不是登录凭证）</td></tr>
         </tbody>
       </table></div>
-      <div class="hint" style="margin:12px 0 0;line-height:1.85">
+      <div class="hint" style="margin:12px 0 0;line-height:1.85" data-i18n="lifetime-hint">
         <b>账号实际能活多久？</b>取决于最早过期的那条核心 cookie，也就是
         <code>hatch_vml</code> —— 大约 <b>2 天</b>。<br>
         <b style="color:var(--warn)">注意：这个 2 天不会因为「用得多」而延长。</b>
@@ -645,7 +650,7 @@
   <section class="tab" id="tab-docs">
     <div class="card doc">
       <h3>接入说明</h3>
-      <div class="hint">
+      <div class="hint" data-i18n="docs-intro">
         接口与 OpenAI 风格对齐，下游项目只需改 <code>base_url</code> 和 <code>api_key</code>。
         <br>BASE URL：<code id="dBase">—</code>
       </div>
@@ -659,7 +664,7 @@
           <tr><td class="mono">muse-video</td><td>文生视频 / 图生视频</td><td class="mono">POST /v1/videos → GET /v1/videos/{id}</td></tr>
         </tbody>
       </table></div>
-      <div class="hint" style="margin-top:6px">
+      <div class="hint" style="margin-top:6px" data-i18n="models-hint">
         这三个就是 Muse 系列的真实能力：<b>Muse Spark</b>（语言 / 代码）、<b>Muse Image</b>（生图）、
         <b>Muse Video</b>（生视频）。muse.ai 网页是自动路由的 agent、界面没有模型选择器，
         所以 <code>model</code> 字段只用于兼容下游 —— 传 <code>gpt-4o</code>、
@@ -742,7 +747,7 @@ t = requests.post(<span class="s">"BASE/v1/videos"</span>, json={<span class="s"
       </table></div>
 
       <h4>7. 鉴权</h4>
-      <div class="hint" style="margin:0">
+      <div class="hint" style="margin:0" data-i18n="auth-hint">
         除 <code>/healthz</code>、<code>/readyz</code>、<code>/v1/media/*</code> 外，其余接口均需
         <code>Authorization: Bearer &lt;API Key&gt;</code>。API Key 在服务器
         <code>/opt/muse2api/.env</code> 的 <code>MUSE2API_KEY</code> 中配置。
@@ -761,7 +766,7 @@ t = requests.post(<span class="s">"BASE/v1/videos"</span>, json={<span class="s"
         </tbody>
       </table></div>
 
-      <div class="hint" style="margin-top:14px">
+      <div class="hint" style="margin-top:14px" data-i18n="model-alias-hint">
         <b>模型名随便填也能用</b>：常见名字（<code>gpt-4o</code>、<code>gpt-5</code>、
         <code>claude-sonnet-4</code>、<code>deepseek-chat</code>、<code>gemini-2.5-pro</code> 等）
         会自动映射到对应能力；完全没见过的名字会原样透传，muse.ai 那边本来就是自动路由，
@@ -782,7 +787,7 @@ t = requests.post(<span class="s">"BASE/v1/videos"</span>, json={<span class="s"
         </tbody>
       </table></div>
 
-      <div class="hint" style="margin-top:8px">
+      <div class="hint" style="margin-top:8px" data-i18n="tool-calls-hint">
         <b>关于「工具调用」这条限制（重要，已实测）：</b><br>
         muse.ai 的网页助手对「输出伪工具调用 JSON」有明确的对齐拒绝策略 —— 实测原话是
         「我不会按这种 JSON 格式输出'伪工具调用'——我没有 get_weather 这个工具」。
@@ -804,6 +809,577 @@ t = requests.post(<span class="s">"BASE/v1/videos"</span>, json={<span class="s"
 <div id="toasts"></div>
 
 <script>
+/* ================= 界面语言 / UI language =================
+ * 中文是源语言；英文通过下面的词典在渲染时替换（静态文本、动态插入的节点、alert/confirm/prompt）。
+ * 新增中文文案时，请在 I18N_EN（整句）或 I18N_EN_PATTERNS（含变量）里补上英文。 */
+const LANG_STORE = 'muse2api_lang';
+const LANG = (() => {
+  try { const v = localStorage.getItem(LANG_STORE); if (v === 'zh' || v === 'en') return v; } catch (e) {}
+  return /^zh\b/i.test(navigator.language || '') ? 'zh' : 'en';
+})();
+function setLang(v){
+  try { localStorage.setItem(LANG_STORE, v); } catch (e) {}
+  location.reload();
+}
+/* 整句：中文 → 英文 */
+const I18N_EN = {
+  "muse2api · 账号池控制台": "muse2api · Account Pool Console",
+  "Muse 网页额度 · 反代 API": "Muse web quota · Reverse-proxy API",
+  "打开 GitHub 开源仓库 (https://github.com/czg86389-hub/muse2api)": "Open the GitHub repository (https://github.com/czg86389-hub/muse2api)",
+  "GitHub 仓库": "GitHub repo",
+  "社区认可与友情链接：LINUX DO 社区 (https://linux.do/)": "Community & friendly link: LINUX DO community (https://linux.do/)",
+  "查看官方仓库最新版本状态与更新通知": "View the latest version status and update notices from the official repository",
+  "版本检测": "Version check",
+  "服务": "Service",
+  "账号": "Accounts",
+  "浏览器": "Browser",
+  "自动刷新": "Auto refresh",
+  "粘贴 m2a_ 开头的密钥": "Paste the key starting with m2a_",
+  "保存": "Save",
+  "检测到 muse2api 官方仓库发布了新版本更新！": "A new muse2api version has been released in the official repository!",
+  "新版本": "New version",
+  "官方仓库已有新功能或性能优化提交，点击右侧按钮即可一键在线升级（自动保留本地 .env 密钥与账号池数据）。": "The official repository has new features or performance improvements. Click the button on the right to upgrade online in one step (your local .env keys and Account Pool data are kept).",
+  "⚡ 一键在线升级并重启": "⚡ Upgrade online and restart",
+  "查看更新内容": "View changes",
+  "暂不提醒": "Remind me later",
+  "官方仓库版本检测与在线热升级": "Official repository version check & online hot upgrade",
+  "检测中…": "Checking…",
+  "⚡ 一键从 GitHub 在线更新并重启": "⚡ Update from GitHub and restart",
+  "🔍 立即重新检测更新": "🔍 Check for updates now",
+  "查看 GitHub 完整提交记录 ↗": "View full commit history on GitHub ↗",
+  "账号池": "Account Pool",
+  "获取 Cookie": "Get Cookies",
+  "任务记录": "Tasks",
+  "媒体库": "Media Library",
+  "接口测试": "API Playground",
+  "接入文档": "Integration Docs",
+  "去重新登录": "Log in again",
+  "接入信息": "Connection info",
+  "下游项目填这两个值": "Fill these two values into your project",
+  "把下面两项填进你的项目就能调用。BASE URL 就是接口地址前缀。": "Put the two values below into your project to start calling the API. BASE URL is the API address prefix.",
+  "BASE URL（接口地址）": "BASE URL (API address)",
+  "复制": "Copy",
+  "API Key（访问密钥）": "API Key (access key)",
+  "显示": "Show",
+  "重新生成": "Regenerate",
+  "账号总数": "Total accounts",
+  "可用": "Available",
+  "异常": "Error",
+  "已禁用": "Disabled",
+  "媒体文件": "Media files",
+  "添加账号": "Add accounts",
+  "支持批量": "Batch supported",
+  "账号标签（单条导入用）": "Account label (single import)",
+  "例如 muse-main": "e.g. muse-main",
+  "Cookie 字符串": "Cookie string",
+  "hatch_sess=...; hatch_gw=...; hatch_vml=...\n或批量：\nacc-01 | hatch_sess=...; hatch_gw=...\nacc-02 | hatch_sess=...; hatch_gw=...": "hatch_sess=...; hatch_gw=...; hatch_vml=...\nor in batch:\nacc-01 | hatch_sess=...; hatch_gw=...\nacc-02 | hatch_sess=...; hatch_gw=...",
+  "导入账号": "Import accounts",
+  "清空": "Clear",
+  "账号列表": "Accounts",
+  "● 自动保活轮转中 (30m)": "● Auto keep-alive rotation on (30m)",
+  "⚡ 一键保活所有账号": "⚡ Keep all accounts alive now",
+  "标签": "Label",
+  "账号 ID": "Account ID",
+  "状态": "Status",
+  "有效期": "Expires",
+  "额度": "Quota",
+  "启用": "Enable",
+  "最后使用": "Last used",
+  "备注": "Notes",
+  "操作": "Actions",
+  "加载中…": "Loading…",
+  "方式一：浏览器扩展": "Option 1: Browser extension",
+  "推荐 · 零命令行 · 全平台": "Recommended · No command line · All platforms",
+  "下载并解压扩展": "Download and unzip the extension",
+  "⬇ 下载 muse2api-extension.zip": "⬇ Download muse2api-extension.zip",
+  "查看包含哪些文件": "Show included files",
+  "在浏览器里加载扩展": "Load the extension in your browser",
+  "以 Chrome 为例（Edge / Brave / 360 极速 等 Chromium 内核浏览器步骤类似）：": "Using Chrome as an example (Edge / Brave / 360 and other Chromium-based browsers are similar):",
+  "登录 muse.ai，然后点扩展图标导入": "Log in to muse.ai, then click the extension icon to import",
+  "BASE URL（填进扩展）": "BASE URL (enter in the extension)",
+  "API Key（填进扩展）": "API Key (enter in the extension)",
+  "方式二：手动复制": "Option 2: Copy manually",
+  "零安装 · 兜底": "No install · Fallback",
+  "方式三：粘贴导入 / 本机脚本": "Option 3: Paste to import / local script",
+  "进阶": "Advanced",
+  "已经拿到 cookie 串的话，直接粘在这里导入（方式二手动复制的串也粘这里）。": "If you already have a cookie string, paste it here to import (strings copied manually in Option 2 go here too).",
+  "账号标签": "Account label",
+  "例如 acc-01": "e.g. acc-01",
+  "① 下载脚本": "① Download the script",
+  "查看源码": "View source",
+  "② 运行（地址和密钥已帮你填好）": "② Run it (address and key are pre-filled)",
+  "正在生成命令…": "Generating command…",
+  "③ 在弹出的浏览器窗口里登录 muse.ai → 脚本自动抓取并上传 → 自动关窗。": "③ Log in to muse.ai in the browser window that opens → the script captures and uploads the cookies → the window closes automatically.",
+  "Cookie 有效期说明": "Cookie lifetime",
+  "实测": "Measured",
+  "实测 muse.ai 各条 cookie 的有效期（不同账号可能略有差异）：": "Measured lifetime of each muse.ai cookie (may vary slightly between accounts):",
+  "实测有效期": "Measured lifetime",
+  "作用": "Purpose",
+  "是": "Yes",
+  "约 30 天": "~30 days",
+  "主会话，决定能不能登录": "Main session; decides whether you are logged in",
+  "约 1 年": "~1 year",
+  "网关令牌": "Gateway token",
+  "约 2 天": "~2 days",
+  "设备标识（匿名访客也有，不是登录凭证）": "Device ID (anonymous visitors have it too; not a login credential)",
+  "生成任务记录": "Generation tasks",
+  "生视频是异步任务，状态会从 queued → processing → succeeded / failed。": "Video generation is asynchronous; status goes queued → processing → succeeded / failed.",
+  "刷新": "Refresh",
+  "清空全部": "Clear all",
+  "任务 ID": "Task ID",
+  "类型": "Type",
+  "提示词": "Prompt",
+  "耗时": "Duration",
+  "创建时间": "Created",
+  "结果 / 错误": "Result / Error",
+  "所有已生成并落盘的图片 / 视频，可直接下载或把链接给下游项目使用。": "All generated images / videos saved on disk. Download them directly or give the links to downstream projects.",
+  "全选": "Select all",
+  "删除选中 (": "Delete selected (",
+  "在线生图测试": "Image generation test",
+  "真实调用 muse.ai 生成，图片约 10–30 秒返回。": "Calls muse.ai for real; images return in about 10–30 seconds.",
+  "比例": "Aspect ratio",
+  "开始生成图片": "Generate image",
+  "在线生视频测试": "Video generation test",
+  "异步任务，一般 60–120 秒完成，页面会自动轮询进度。": "Asynchronous task, usually done in 60–120 seconds; the page polls progress automatically.",
+  "时长(秒)": "Duration (s)",
+  "开始生成视频": "Generate video",
+  "接入说明": "Integration guide",
+  "1. 可用模型": "1. Available models",
+  "模型 ID": "Model ID",
+  "用途": "Use",
+  "接口": "Endpoint",
+  "文本 / 代码对话（支持流式）": "Text / code chat (streaming supported)",
+  "文生图 / 图像编辑": "Text-to-image / image editing",
+  "文生视频 / 图生视频": "Text-to-video / image-to-video",
+  "2. 对话 / 写代码": "2. Chat / coding",
+  "# 非流式": "# Non-streaming",
+  "'{\"model\":\"muse-spark\",\"messages\":[{\"role\":\"user\",\"content\":\"写一个 Python 快排\"}]}'": "'{\"model\":\"muse-spark\",\"messages\":[{\"role\":\"user\",\"content\":\"Write a quicksort in Python\"}]}'",
+  "# 流式：加 \"stream\":true，返回标准 SSE（data: {...} / data: [DONE]）": "# Streaming: add \"stream\":true to get standard SSE (data: {...} / data: [DONE])",
+  "3. 生图（curl）": "3. Image generation (curl)",
+  "'{\"prompt\":\"一只戴宇航头盔的柴犬\",\"size\":\"1:1\",\"response_format\":\"url\"}'": "'{\"prompt\":\"A Shiba Inu wearing a space helmet\",\"size\":\"1:1\",\"response_format\":\"url\"}'",
+  "# 返回": "# Response",
+  "\"一只戴宇航头盔的柴犬\"": "\"A Shiba Inu wearing a space helmet\"",
+  "# url 是完整绝对地址，可直接给下游渲染 / 下载；/v1/media/* 无需鉴权。": "# url is a full absolute address that downstream apps can render / download directly; /v1/media/* needs no auth.",
+  "# 想要 base64 就传 \"response_format\":\"b64_json\"。": "# For base64, pass \"response_format\":\"b64_json\".",
+  "4. 生视频（curl，异步）": "4. Video generation (curl, async)",
+  "# ① 创建任务": "# ① Create the task",
+  "'{\"prompt\":\"一只小猫在草地上走动\",\"duration\":5,\"size\":\"16:9\"}'": "'{\"prompt\":\"A kitten walking on the grass\",\"duration\":5,\"size\":\"16:9\"}'",
+  "# ② 轮询结果": "# ② Poll for the result",
+  "5. Python（openai SDK 兼容）": "5. Python (openai SDK compatible)",
+  "# 生图": "# Image generation",
+  "# 生视频（走原生接口，因为是异步任务）": "# Video generation (uses the native endpoint because it is asynchronous)",
+  "\"小猫走动\"": "\"A kitten walking\"",
+  "6. 管理接口": "6. Admin API",
+  "方法": "Method",
+  "路径": "Path",
+  "说明": "Description",
+  "服务总览 + 账号池 + 最近任务": "Service overview + Account Pool + recent tasks",
+  "添加账号（单条 / batch 批量文本）": "Add accounts (single / batch text)",
+  "改标签 / 启用禁用": "Rename / enable or disable",
+  "删除账号": "Delete account",
+  "真实校验会话有效性（顺带刷新额度）": "Verify the session for real (also refreshes quota)",
+  "实时读取该账号剩余额度": "Read this account's remaining quota live",
+  "更新该账号 cookie": "Update this account's cookies",
+  "媒体库列表": "Media library list",
+  "批量删除媒体文件": "Delete media files in batch",
+  "7. 鉴权": "7. Authentication",
+  "8. 接入各类客户端 / 智能体": "8. Connecting clients / agents",
+  "凡是支持「自定义 OpenAI 兼容端点」的客户端，都只填三个值就能用：": "Any client that supports a \"custom OpenAI-compatible endpoint\" works with just three values:",
+  "配置项": "Setting",
+  "填什么": "Value",
+  "Base URL / API 地址": "Base URL / API address",
+  "http://<你的服务器IP或域名>:18610/v1": "http://<your-server-IP-or-domain>:18610/v1",
+  "m2a_...（本页顶部「接入信息」里那个）": "m2a_... (the one under \"Connection info\" at the top of this page)",
+  "模型名": "Model name",
+  "按客户端类型看能不能用": "Compatibility by client type",
+  "客户端类型": "Client type",
+  "依赖能力": "Requires",
+  "对话 / 聊天类（桌面端、Web UI、浏览器插件）": "Chat clients (desktop, Web UI, browser extensions)",
+  "✅ 可用": "✅ Works",
+  "流式输出（打字机效果）": "Streaming output (typewriter effect)",
+  "stream:true（标准 SSE）": "stream:true (standard SSE)",
+  "代码补全 / 内联补全插件": "Code completion / inline completion plugins",
+  "翻译 / 总结 / 解释类工具": "Translation / summarization / explanation tools",
+  "画图类客户端": "Image generation clients",
+  "视频生成客户端": "Video generation clients",
+  "POST /v1/videos（异步轮询）": "POST /v1/videos (async polling)",
+  "需要「工具调用」的自主 Agent 模式": "Autonomous agent modes that need \"tool calling\"",
+  "⚠️ 不可用": "⚠️ Not supported",
+  "开源仓库：": "Source code: ",
+  "社区认可与友情链接：": "Community & friendly link: ",
+  "LINUX DO 社区 (https://linux.do/)": "LINUX DO community (https://linux.do/)",
+  "一只戴宇航头盔的柴犬，赛博朋克风格，霓虹灯背景": "A Shiba Inu wearing a space helmet, cyberpunk style, neon background",
+  "一只橙色小猫在草地上慢慢走动，阳光明媚": "An orange kitten slowly walking on the grass on a sunny day",
+  "✓ 已登录": "✓ Logged in",
+  "API Key 必填": "API Key required",
+  "已清除 API Key": "API Key cleared",
+  "API Key 已保存到本机浏览器，下次打开自动带上": "API Key saved in this browser; it will be used automatically next time",
+  "API Key 未填写或填写错误": "API Key is missing or incorrect",
+  "请求参数有误 (HTTP 400)，请检查输入内容": "Invalid request parameters (HTTP 400); please check your input",
+  "服务器拒绝了该请求 (HTTP 403)，请确认登录状态与访问权限": "The server rejected the request (HTTP 403); please check your login state and permissions",
+  "接口不存在 (HTTP 404)，可能是版本不匹配，请刷新页面或更新服务端": "Endpoint not found (HTTP 404); possibly a version mismatch — refresh the page or update the server",
+  "服务端不支持该请求方式 (HTTP 405)，请刷新页面或更新服务端": "Request method not supported by the server (HTTP 405); refresh the page or update the server",
+  "提交内容过大 (HTTP 413)，请减少本次提交的数据量后重试": "Payload too large (HTTP 413); reduce the amount of data submitted and try again",
+  "请求过于频繁 (HTTP 429)，请稍等片刻后重试": "Too many requests (HTTP 429); please wait a moment and try again",
+  "服务端内部错误 (HTTP 500)，请稍后重试或查看服务器日志": "Internal server error (HTTP 500); try again later or check the server logs",
+  "服务返回网关错误 (HTTP 502)，请稍后重试；持续失败请查看服务器日志": "The service returned a gateway error (HTTP 502); try again later, and check the server logs if it keeps failing",
+  "服务暂时不可用 (HTTP 503)，可能正在重启或过载，请稍后重试": "Service temporarily unavailable (HTTP 503); it may be restarting or overloaded — try again later",
+  "网关超时 (HTTP 504)，上游处理时间过长，请稍后重试或调整反代超时设置": "Gateway timeout (HTTP 504); the upstream took too long — try again later or adjust the reverse-proxy timeout",
+  "从未": "Never",
+  "已复制": "Copied",
+  "已复制到剪贴板": "Copied to clipboard",
+  "没有可复制的内容": "Nothing to copy",
+  "复制失败，请手动选中复制": "Copy failed; please select and copy manually",
+  "（先在右上角填入 API Key，这里会生成完整命令）": "(Enter the API Key in the top-right corner first; the full command will be generated here)",
+  "隐藏": "Hide",
+  "读取中…": "Loading…",
+  "（扩展目录为空，请检查部署）": "(Extension folder is empty; please check the deployment)",
+  "、": ", ",
+  "重新生成 API Key？\n\n旧 Key 会立即失效，已经接入的下游项目必须同步更新，否则会报 401。": "Regenerate the API Key?\n\nThe old key stops working immediately; downstream projects already using it must be updated, or they will get 401 errors.",
+  "已生成新 Key 并立即生效，本页已自动更新": "New key generated and active immediately; this page has been updated",
+  "未查": "Unchecked",
+  "还没查过。点「操作」里的「额度」实时查询": "Not checked yet. Click \"Quota\" under Actions to query it live",
+  "额度数据已超过 1 小时，需重新查询": "Quota data is over 1 hour old; please re-check",
+  "查询中…": "Checking…",
+  "设置面板里没有读到额度数据（可能是页面结构变了）": "No quota data found in the settings panel (the page structure may have changed)",
+  "未知": "Unknown",
+  "未记录有效期": "No expiry recorded",
+  "已过期": "Expired",
+  "的有效期不足 12 小时。muse.ai 的会话约 2 天到期且不会因使用而延长，建议现在重新登录一次，避免生成时突然失败。": "expire(s) in less than 12 hours. muse.ai sessions expire in about 2 days and are not extended by use; log in again now to avoid sudden failures during generation.",
+  "还没有账号。去「获取 Cookie」页签按三步导入一个": "No accounts yet. Go to the \"Get cookies\" tab and import one in three steps",
+  "● 可用": "● Healthy",
+  "● 异常": "● Error",
+  "○ 未检测": "○ Untested",
+  "缺少核心 cookie，无法生成": "Core cookies missing; cannot generate",
+  "缺核心": "Missing core",
+  "开": "On",
+  "关": "Off",
+  "测试": "Test",
+  "保活": "Keep alive",
+  "静默刷新会话令牌与有效期": "Silently refresh the session token and expiry",
+  "禁用": "Disable",
+  "改名": "Rename",
+  "更新Cookie": "Update cookies",
+  "删除": "Delete",
+  "🔑 请先在右上角填入 API Key 并点「保存」": "🔑 Enter the API Key in the top-right corner and click \"Save\" first",
+  "请先粘贴 Cookie": "Please paste a cookie first",
+  "正在真实打开 muse.ai 校验会话…": "Opening muse.ai to verify the session…",
+  "正在为该账号执行会话静默续期…": "Silently renewing the session for this account…",
+  "✓ 账号保活成功，新到期时间已更新": "✓ Keep-alive succeeded; new expiry updated",
+  "未知错误": "unknown error",
+  "保活执行中…": "Keeping alive…",
+  "正在唤醒无头浏览器，为账号池执行静默续期与保活…": "Waking the headless browser to silently renew and keep the account pool alive…",
+  "保活任务正在后台运行中，请稍候查看": "A keep-alive job is already running in the background; check back shortly",
+  "已启用": "Enabled",
+  "新的账号标签：": "New account label:",
+  "标签已更新": "Label updated",
+  "粘贴该账号最新的 Cookie 字符串：": "Paste the latest cookie string for this account:",
+  "已删除": "Deleted",
+  "暂无任务记录": "No tasks yet",
+  "查看结果": "View result",
+  "视频": "Video",
+  "图片": "Image",
+  "删": "Del",
+  "确定清空全部任务记录？（已生成的媒体文件不会被删除）": "Clear all task records? (Generated media files will not be deleted)",
+  "取消全选": "Deselect all",
+  "删除成功": "Deleted",
+  "文件不存在或已被删除": "File does not exist or was already deleted",
+  "请先选择要删除的媒体文件": "Select the media files to delete first",
+  "删除中…": "Deleting…",
+  "还没有生成任何媒体文件": "No media files generated yet",
+  "勾选以批量操作": "Select for batch actions",
+  "打开": "Open",
+  "下载": "Download",
+  "请输入提示词": "Please enter a prompt",
+  "生成中…": "Generating…",
+  "正在提交图片任务，生成期间会持续查询状态…": "Submitting image task; status will be polled during generation…",
+  "等待超过 15 分钟，请在任务记录查看结果，勿重复提交": "Waited more than 15 minutes; check the result in Tasks and do not resubmit",
+  "图片生成失败": "Image generation failed",
+  "状态查询暂时失败，请在任务记录查看，勿重复提交": "Status polling is temporarily failing; check Tasks and do not resubmit",
+  "✓ 生成成功": "✓ Generated successfully",
+  "✗ 生成失败": "✗ Generation failed",
+  "正在创建视频任务…": "Creating video task…",
+  "✗ 创建任务失败": "✗ Failed to create task",
+  "旧版": "old",
+  "最新": "latest",
+  "最新仓库提交：": "Latest repository commit: ",
+  "性能优化与功能更新": "Performance improvements and feature updates",
+  "· 点击右侧「⚡ 一键在线升级并重启」即可自动拉取更新（保留本地配置与账号数据）。": "· Click \"⚡ Upgrade online & restart\" on the right to pull the update automatically (local config and account data are preserved).",
+  "点击顶部一键升级": "click the one-click upgrade at the top",
+  "当前已部署版本：": "Currently deployed: ",
+  "（Commit:": " (Commit:",
+  "） · GitHub 官方仓库最新：": ") · Latest in official GitHub repo: ",
+  "）": ")",
+  "📜 官方仓库最近提交动态：": "📜 Recent commits in the official repository:",
+  "暂无提交记录": "No commits yet",
+  "🔔 检测到新版本更新！": "🔔 A new version is available!",
+  "✓ 当前已是官方仓库最新版本": "✓ You are on the latest version of the official repository",
+  "待鉴权": "Awaiting auth",
+  "确定立即从 GitHub 官方仓库 (czg86389-hub/muse2api) 拉取最新代码并自动重启服务吗？\n\n（注：本地 .env 密钥、账号池 Cookie 和已生成的媒体文件均会自动保留，不受任何影响）": "Pull the latest code from the official GitHub repository (czg86389-hub/muse2api) and restart the service now?\n\n(Note: your local .env keys, account pool cookies and generated media files are preserved automatically and will not be affected)",
+  "正在在线更新…": "Updating…",
+  "更新完成": "Update complete",
+  "正常": "OK",
+  "运行中": "Running",
+  "空闲": "Idle",
+  "待登录": "Login required",
+  "等待空闲账号超时，当前所有账号均处于繁忙中": "Timed out waiting for an idle account; all accounts are currently busy",
+  "没有可用账号，请先在管理页面导入 cookie": "No available account; please import cookies on the admin page first",
+  "缺少 Authorization: Bearer <key>": "Missing Authorization: Bearer <key>",
+  "API key 无效": "Invalid API key",
+  "等待浏览器队列超时，请稍后重试": "Timed out waiting for the browser queue; please retry later",
+  "任务总等待时限已到，停止重试": "Total task wait time exceeded; stopping retries",
+  "image task 不存在": "image task not found",
+  "task 不存在": "task not found",
+  "messages 为空": "messages is empty",
+  "input 为空": "input is empty",
+  "非法文件名": "Invalid file name",
+  "文件不存在": "File not found",
+  "未解析到任何 cookie，请检查格式": "No cookies could be parsed; please check the format",
+  "未解析到 cookie": "No cookies could be parsed",
+  "账号不存在": "Account not found",
+  "该账号没有 cookie": "This account has no cookies",
+  "没有可用账号": "No available account",
+  "额度面板未读到有效数据；旧缓存未覆盖": "Quota panel returned no valid data; old cache kept",
+  "会话有效": "Session valid",
+  "会话有效；额度读取失败": "Session valid; quota read failed",
+  "会话有效，可正常生成": "Session valid; generation should work",
+  "已更新 cookie": "Cookies updated",
+  "已生成新 Key 并立即生效；旧 Key 已失效，请更新下游项目": "New key generated and active immediately; the old key is now invalid, please update downstream projects",
+  "助手脚本缺失": "Helper script missing",
+  "扩展目录缺失": "Extension directory missing",
+  "任务不存在": "Task not found",
+  "names 必须是文件名数组": "names must be an array of file names",
+  "账号无有效 cookie": "Account has no valid cookies",
+  "会话充足且近期已保活": "Session has plenty of time left and was kept alive recently",
+  "保活任务正在执行中，请稍候": "A keep-alive task is already running; please wait",
+  "已成功提交并推送到 GitHub 仓库": "Successfully committed and pushed to the GitHub repository",
+  "服务重启中断了任务，请重新提交": "The task was interrupted by a service restart; please resubmit",
+  "会话认证失败 (/api/session HTTP 401)，请在官网确认登录后重新导入 cookie": "Session authentication failed (/api/session HTTP 401); confirm you are logged in on the official site and re-import the cookies",
+  "/api/session HTTP 200 返回非 JSON；会话状态未确认": "/api/session HTTP 200 returned non-JSON; session status not confirmed",
+  "/api/session HTTP 200 未返回 assigned 会话；请在官网检查账号/工作区状态": "/api/session HTTP 200 did not return an assigned session; check the account/workspace status on the official site",
+  "页面网关连接超时 (Connecting...)，正在自动切换账号": "Page gateway connection timed out (Connecting...), switching account automatically",
+  "会话已被 muse.ai 登出（可能被其它登录挤掉或触发风控），请用浏览器扩展重新导入 cookie": "The session was logged out by muse.ai (possibly kicked by another login or by risk control); please re-import the cookies with the browser extension",
+  "muse.ai 页面加载超时（未出现聊天输入框），请检查服务器网络后重试；未确认会话失效": "muse.ai page load timed out (chat input did not appear); check the server network and retry. The session is not confirmed invalid",
+  "找不到设置入口（Settings／設定／设置）": "Settings entry not found (Settings / 設定 / 设置)",
+  "设置菜单未出现可识别的设置项": "Settings menu did not show a recognizable Settings item",
+  "额度面板未读到有效用量；旧缓存未覆盖": "No valid usage read from the quota panel; old cache left unchanged",
+  "找不到聊天输入框": "Chat input box not found",
+  "客户端已断开连接，终止生成任务": "Client disconnected, aborting generation task",
+  "账号额度不足": "Account quota exhausted",
+  "提示词未成功送达后端（Still sending / Delivery not confirmed），终止等待并重试": "Prompt was not delivered to the backend (Still sending / Delivery not confirmed), aborting wait and retrying",
+  "云端 VM 连接超时 (Still sending)": "Cloud VM connection timed out (Still sending)",
+  "等待助手首字响应超时": "Timed out waiting for the first token of the assistant reply",
+  "等待助手回复超时": "Timed out waiting for the assistant reply",
+  "参考图读取失败，已停止生成": "Failed to read the reference image, generation stopped",
+  "附加参考图失败，已停止生成": "Failed to attach the reference image, generation stopped",
+  "参考图上传未确认，已停止生成": "Reference image upload not confirmed, generation stopped",
+  "任务准备超时，已停止发送": "Task preparation timed out, sending stopped",
+  "提示词发送未确认，已停止生成": "Prompt sending not confirmed, generation stopped",
+  "等待生成超时，未出现新的生成结果": "Timed out waiting for generation, no new result appeared",
+  "已生成但未能取回文件": "Generated but the file could not be retrieved",
+  "免费计划": "Free",
+  "免費計劃": "Free",
+  "免费方案": "Free",
+  "免費方案": "Free",
+  "✓ 会话有效，可正常生成": "✓ Session valid; generation should work",
+  "✗ 保活失败: 未知错误": "✗ Keep-alive failed: unknown error",
+};
+/* 含富文本的块：data-i18n="key" → 英文 innerHTML（须保留原有子元素的 id/class/属性） */
+const I18N_EN_HTML = {
+  "repo-status-desc": "Comparing your local version with the latest version in the official GitHub repository… (online upgrades keep your <code>.env</code> keys and the <code>data/</code> Account Pool and media data)",
+  "auth-banner": "\n      <b>Enter your API Key first so the page can load data</b><br>\n      <span style=\"color:var(--muted)\">\n        The API Key is this service's own \"access password\". It stops other people from using your Muse account quota.\n        It is <b style=\"color:var(--text)\">not</b> your Muse password. It is a random string generated at deploy time (it starts with <code>m2a_</code>).<br>\n        Paste it into the box at the top right and click \"Save\". Your browser remembers it, so you won't need to enter it again.\n      </span>\n    ",
+  "model-names-hint": "\n        Model names: <code>muse-spark</code> (chat/code), <code>muse-image</code> (images), <code>muse-video</code> (videos).\n        See the \"Integration Docs\" tab for full examples.\n      ",
+  "add-account-hint": "\n        Copy the <b>muse.ai</b> cookie string from your browser and paste it here. Key cookies:\n        <code>hatch_sess</code>, <code>hatch_gw</code>, <code>hatch_vml</code>.\n        For batch import, put one account per line in the format <code>label | cookie string</code> (label is optional).\n      ",
+  "keepalive-hint": "The system runs <b>a silent background keep-alive every 30 minutes</b> and <b>fair multi-account rotation (LRU)</b>. \"Test\" actually opens muse.ai to verify the session.",
+  "ext-why-hint": "\n        A small browser extension syncs <b>the muse.ai login you already have on your own computer</b>.\n        No Python, no terminal, no commands.<br>\n        <b>Why an extension is required</b>: muse.ai's 4 core cookies are all marked\n        <code>httpOnly</code>, so page scripts (typing <code>document.cookie</code> in F12,\n        bookmarklets) can't read them. Only a browser extension's <code>cookies</code> API can.\n      ",
+  "ext-unzip-hint": "\n            Unzip it to a folder you won't delete, e.g. <code>D:\\muse2api-extension</code>.\n          ",
+  "ext-load-steps": "\n            <li>Type <code>chrome://extensions</code> in the address bar and press Enter</li>\n            <li>Turn on the <b>Developer mode</b> switch at the top right</li>\n            <li>Click <b>Load unpacked</b> at the top left</li>\n            <li>Select the <b>folder</b> you unzipped in step 1 (not a single file inside it)</li>\n          ",
+  "ext-login-hint": "\n            First open <code>https://muse.ai/</code> in your own browser and log in\n            (until you can see the chat screen), then click the extension icon in the toolbar,\n            fill in the two values below, and click \"Read and import\".\n          ",
+  "manual-copy-hint": "\n        If you don't want to install the extension, you can copy the cookie string by hand. The key is to use\n        <b>the request headers in the \"Network\" panel</b>, not the Console: the request header's\n        <code>cookie:</code> line <b>includes the httpOnly cookies</b>, which the Console can't read.\n      ",
+  "manual-copy-steps": "\n        <li>Open and log in to <code>https://muse.ai/</code> in your own browser and stay on the chat screen</li>\n        <li>Press <kbd>F12</kbd> to open developer tools and switch to the <b>Network</b> panel</li>\n        <li>Press <kbd>F5</kbd> to reload the page so the request list fills up</li>\n        <li>Click <b>any muse.ai request</b> in the list (the first one is fine)</li>\n        <li>On the right, find <b>Headers</b> → scroll down to <b>Request Headers</b></li>\n        <li>Find the line starting with <code>cookie:</code> and <b>copy the whole string after the colon</b>\n            (from <code>hatch_sess=</code> to the end of the line)</li>\n        <li>Paste it into the box under \"Option 3\" below and click Import</li>\n      ",
+  "manual-copy-warn": "\n        Note: use the <code>cookie:</code> line in the <b>request headers</b>, not the \"response headers\".\n        The <code>set-cookie</code> in the response headers only has some of the cookies, so things will be missing.\n      ",
+  "cli-script-hint": "\n        If you prefer the command line, or want to log in with a separate browser (without touching your everyday browser), you can use this script.\n        It only uses the Python standard library and <b>needs nothing installed via pip</b>.\n      ",
+  "vml-role": "Short-lived verification token; <b>determines account lifetime</b>",
+  "lifetime-hint": "\n        <b>How long does an account actually last?</b> It depends on the core cookie that expires first, which is\n        <code>hatch_vml</code>: about <b>2 days</b>.<br>\n        <b style=\"color:var(--warn)\">Note: these 2 days are not extended by heavy use.</b>\n        After each generation the service does read back the new cookies muse.ai issues and writes them to the Account Pool\n        (so you'll see the \"Expires\" column update), but the core cookie's expiry time\n        <b>is not pushed back</b> (confirmed by before/after generation experiments).<br>\n        <b>So: re-import roughly every 2 days.</b> Luckily it's quick: one click on the extension icon.<br>\n        <b>Import several accounts at once</b>: the pool rotates by \"least recently used\", so more accounts are more stable\n        and spread out the re-imports (one per day instead of all accounts expiring at once).<br>\n        <b>When should I re-import?</b> When the \"Expires\" column shows\n        <span class=\"badge bad\">Expired</span>, the status shows\n        <span class=\"badge bad\">Error</span>, or a \"missing core\" marker appears.\n      ",
+  "docs-intro": "\n        The API follows the OpenAI style; downstream projects only need to change <code>base_url</code> and <code>api_key</code>.\n        <br>BASE URL: <code id=\"dBase\">—</code>\n      ",
+  "models-hint": "\n        These three are the real capabilities of the Muse family: <b>Muse Spark</b> (language / code), <b>Muse Image</b> (images),\n        <b>Muse Video</b> (videos). The muse.ai web app is an auto-routing agent with no model picker in the UI,\n        so the <code>model</code> field is only for downstream compatibility: common names like <code>gpt-4o</code>,\n        <code>claude-sonnet-4</code> and <code>dall-e-3</code> are mapped to the matching capability automatically.\n      ",
+  "auth-hint": "\n        Except for <code>/healthz</code>, <code>/readyz</code> and <code>/v1/media/*</code>, all endpoints require\n        <code>Authorization: Bearer &lt;API Key&gt;</code>. The API Key is configured in\n        <code>MUSE2API_KEY</code> in <code>/opt/muse2api/.env</code> on the server.\n      ",
+  "model-alias-hint": "\n        <b>Any model name works</b>: common names (<code>gpt-4o</code>, <code>gpt-5</code>,\n        <code>claude-sonnet-4</code>, <code>deepseek-chat</code>, <code>gemini-2.5-pro</code>, etc.)\n        are mapped to the matching capability automatically; unknown names are passed through unchanged. muse.ai routes automatically anyway,\n        so the result is the same.\n      ",
+  "tool-calls-hint": "\n        <b>About the \"tool calling\" limitation (important, tested):</b><br>\n        The muse.ai web assistant has an explicit alignment policy that refuses to \"output fake tool-call JSON\". Its actual reply in testing was\n        \"I won't output 'fake tool calls' in this JSON format — I don't have a get_weather tool.\"\n        Three prompt protocols with different wording and placement were tried, and all failed.<br>\n        So: <b>autonomous agent modes</b> that depend on <code>tool_calls</code> (reading/writing files, running commands, etc.) can't be supported;\n        but all <b>Q&amp;A-style</b> usage (chat, coding, explaining, translating, summarizing, images, videos) <b>works fully</b>.<br>\n        If a client sends a <code>tools</code> field anyway, the API won't error: it ignores the tool declarations and answers as a normal chat.\n      ",
+  "col-enabled": "Enabled",
+};
+/* 含变量的文案：[正则源码, 替换串]，按顺序匹配整段文本 */
+const I18N_EN_PATTERNS = ([
+  ["(\\d+) 秒前", "$1s ago"],
+  ["(\\d+) 分钟前", "$1 min ago"],
+  ["(\\d+) 小时前", "$1 h ago"],
+  ["(\\d+) 天前", "$1 d ago"],
+  ["查询 (\\d+) 秒前", "checked $1s ago"],
+  ["查询 (\\d+) 分钟前", "checked $1 min ago"],
+  ["查询 (\\d+) 小时前", "checked $1 h ago"],
+  ["查询 (\\d+) 天前", "checked $1 d ago"],
+  ["服务返回了无法解析的响应 \\(HTTP (\\d+)\\)，请稍后重试或查看服务器日志", "The service returned an unparseable response (HTTP $1); try again later or check the server logs"],
+  ["(python get_muse_cookie\\.py .*--key )你的API_KEY( .*)", "$1YOUR_API_KEY$2"],
+  ["包含 (\\d+) 个文件：", "Contains $1 files: "],
+  ["计划：(.*)", "Plan: $1"],
+  ["周限额重置：(.*)", "Weekly limit resets: $1"],
+  ["周用量：已用 (.*)%", "Weekly usage: $1% used"],
+  ["额外代币：剩 (.*)（已用 (.*)%）", "Extra tokens: $1 left ($2% used)"],
+  ["查询时间：(.*)", "Checked at: $1"],
+  ["(.*) · 已用 ([\\d.?]+)%", "$1 · $2% used"],
+  ["额度：(.*?)，周用量已用 (.*?)%，额外剩 (.*)", "Quota: $1, weekly usage $2% used, extra left $3"],
+  ["额度：(.*?)，周用量已用 (.*?)%", "Quota: $1, weekly usage $2% used"],
+  ["已于 (.*?) 过期（按 hatch_vml 约 2 天寿命推算，未取到精确 expires）", "Expired at $1 (estimated from the ~2-day hatch_vml lifetime; exact expiry not available)"],
+  ["已于 (.*?) 过期（hatch_vml 实测到期时间）", "Expired at $1 (measured hatch_vml expiry)"],
+  ["到期时间：(.*?)（按 hatch_vml 约 2 天寿命推算，未取到精确 expires）", "Expires at: $1 (estimated from the ~2-day hatch_vml lifetime; exact expiry not available)"],
+  ["到期时间：(.*?)（hatch_vml 实测到期时间）", "Expires at: $1 (measured hatch_vml expiry)"],
+  ["剩 ([\\d.]+) 天", "$1 d left"],
+  ["剩 (\\d+) 小时", "$1 h left"],
+  ["(\\d+) 个账号已过期", "$1 account(s) expired"],
+  ["，另有 (\\d+) 个即将过期（(.*)）。过期的账号无法生成，请重新登录一次（约 30 秒）。", ", $1 more expiring soon ($2). Expired accounts cannot generate; please log in again (about 30 seconds)."],
+  ["，(.*)。过期的账号无法生成，请重新登录一次（约 30 秒）。", ", $1. Expired accounts cannot generate; please log in again (about 30 seconds)."],
+  ["成功导入 (\\d+) 个账号", "Imported $1 account(s)"],
+  ["([✓✗] )(.*?)；额度读取失败：(.*)", "$1$2; quota read failed: $3"],
+  ["([✓✗] )(.*?)；额度已刷新：(.*?)%", "$1$2; quota refreshed: $3%"],
+  ["✗ 保活失败: (.*)", "✗ Keep-alive failed: $1"],
+  ["✓ 成功保活 (\\d+) 个账号，跳过 (\\d+) 个", "✓ Kept $1 account(s) alive, skipped $2"],
+  ["Cookie 已更新（(\\d+) 条）", "Cookies updated ($1)"],
+  ["确定删除账号「(.*)」？此操作不可撤销。", "Delete account \"$1\"? This cannot be undone."],
+  ["已清空 (\\d+) 条记录", "Cleared $1 record(s)"],
+  ["确定要删除媒体文件「(.*)」？此操作无法撤销。", "Delete media file \"$1\"? This cannot be undone."],
+  ["确定要永久删除选中的 (\\d+) 个媒体文件？此操作无法撤销。", "Permanently delete the $1 selected media file(s)? This cannot be undone."],
+  ["已成功删除 (\\d+) 个文件", "Deleted $1 file(s)"],
+  ["读取失败：(.*)", "Failed to load: $1"],
+  ["生成失败：(.*)", "Generation failed: $1"],
+  ["额度查询失败：(.*)", "Quota check failed: $1"],
+  ["加载失败：(.*)", "Failed to load: $1"],
+  ["导入失败：(.*)", "Import failed: $1"],
+  ["测试失败：(.*)", "Test failed: $1"],
+  ["保活执行失败：(.*)", "Keep-alive failed: $1"],
+  ["保活失败：(.*)", "Keep-alive failed: $1"],
+  ["操作失败：(.*)", "Operation failed: $1"],
+  ["改名失败：(.*)", "Rename failed: $1"],
+  ["批量删除失败：(.*)", "Batch delete failed: $1"],
+  ["删除失败：(.*)", "Delete failed: $1"],
+  ["更新失败：(.*)", "Update failed: $1"],
+  ["清空失败：(.*)", "Clear failed: $1"],
+  ["在线更新失败：(.*)", "Online update failed: $1"],
+  ["任务 (.*?) · (.*?) · 已等待 (\\d+) 秒", "Task $1 · $2 · waited $3s"],
+  ["任务 (.*?) · 已等待 (\\d+)s（视频通常 60–120 秒）…", "Task $1 · waited $2s (videos usually take 60–120 seconds)…"],
+  ["🔔 发现新版本 (\\S+) \\((.*)\\)", "🔔 New version $1 available ($2)"],
+  ["发现新更新 \\((.*)\\)", "Update available ($1)"],
+  ["🔔 官方仓库发布了新更新 \\((.*?)\\)：(.*)", "🔔 The official repository has a new update ($1): $2"],
+  ["✓ 已是最新 (\\S+) \\((.*)\\)", "✓ Up to date $1 ($2)"],
+  ["(.*) · 已是最新", "$1 · Up to date"],
+  ["✨ 当前版本核心特性 \\((.*)\\)：", "✨ Key features of this version ($1):"],
+  ["✓ (.*)，服务正在重启，就绪后将自动刷新页面…", "✓ $1; the service is restarting and the page will refresh when it is ready…"],
+  ["(\\S+) \\((.*?)\\) → (\\S+) \\((.*?)\\)", "$1 ($2) → $3 ($4)"],
+  ["(.*) 等 (\\d+) 个", "$1 and $2 in total"],
+  ["([✓✗] )(.*)", "$1$2"],
+  ["✓ 会话有效，可正常生成；额度已刷新：(.*?)%", "✓ Session valid; generation should work; quota refreshed: $1%"],
+  ["✓ 会话有效，可正常生成；额度读取失败：(.*)", "✓ Session valid; generation should work; quota read failed: $1"],
+  ["✓ 已成功更新至最新版本 (.+?) \\(([^()]*)\\)，服务正在重启，就绪后将自动刷新页面…", "✓ Successfully updated to the latest version $1 ($2); the service is restarting and the page will refresh automatically when ready…"],
+  ["✗ 保活失败: (.*)", "✗ Keep-alive failed: $1"],
+  ["指定账号 (.+?) 不存在或已禁用", "Account $1 does not exist or is disabled"],
+  ["请求参数校验失败：(.*)", "Request parameter validation failed: $1"],
+  ["会话正常 \\(VM: (.*?)\\)", "Session OK (VM: $1)"],
+  ["会话有效 · 自动保活 \\(VM: (.*?)\\)", "Session valid · auto keep-alive (VM: $1)"],
+  ["任务异常: (.*)", "Task error: $1"],
+  ["生成失败: (.*)", "Generation failed: $1"],
+  ["助手超时: (.*)", "Assistant timeout: $1"],
+  ["内部错误: (.*)", "Internal error: $1"],
+  ["缺少核心 cookie：(.*?)，该账号可能无法生成", "Missing core cookies: $1; this account may not be able to generate"],
+  ["(\\w+)；额度缓存未更新", "$1; quota cache not updated"],
+  ["测试未确认（保留账号状态）: (.*)", "Test inconclusive (account status kept): $1"],
+  ["保活认证失败: (.*)", "Keep-alive authentication failed: $1"],
+  ["保活未确认（保留账号状态）: (.*)", "Keep-alive inconclusive (account status kept): $1"],
+  ["额度查询失败: (.*)", "Quota query failed: $1"],
+  ["非法文件名: (.*)", "Invalid file name: $1"],
+  ["删除失败: (.*)", "Delete failed: $1"],
+  ["下载 GitHub 更新包失败 \\(HTTP (\\d+)\\)", "Failed to download the GitHub update package (HTTP $1)"],
+  ["已成功更新至最新版本 (.+?) \\(([^()]*)\\)", "Successfully updated to the latest version $1 ($2)"],
+  ["Git commit 失败: (.*)", "Git commit failed: $1"],
+  ["Git push 失败: (.*)", "Git push failed: $1"],
+  ["Chromium 启动失败: (.*)", "Failed to start Chromium: $1"],
+  ["/api/session 网络请求失败 \\((\\w+)\\)；请检查服务器网络/代理后重试", "/api/session network request failed ($1); check the server network/proxy and retry"],
+  ["/api/session HTTP (\\d+)：访问被拒绝，请检查服务器出口/地区/访问限制；不能据此判定 Cookie 失效", "/api/session HTTP $1: Access denied; check the server egress IP/region/access restrictions. This does not mean the cookies are invalid"],
+  ["/api/session HTTP (\\d+)：上游请求未成功，请稍后重试并检查服务器网络", "/api/session HTTP $1: Upstream request failed; retry later and check the server network"],
+  ["模型未生成媒体，仅返回文本: (.*)", "Model did not generate media, returned text only: $1"],
+  ["未能取回生成结果: 未知", "Could not retrieve the generation result: unknown"],
+  ["未能取回生成结果: 解析失败 (.*)", "Could not retrieve the generation result: parse failed $1"],
+  ["未能取回生成结果: (.*)", "Could not retrieve the generation result: $1"],
+  ["期望生成视频，但提取成品类型为图片 \\((.*?)\\)，拒绝以图片冒充视频交付", "Expected a video, but the extracted result is an image ($1); refusing to deliver an image as a video"],
+  ["期望生成视频，但下载成品类型为图片 \\((.*?)\\)，拒绝以图片冒充视频交付", "Expected a video, but the downloaded result is an image ($1); refusing to deliver an image as a video"],
+  ["CDP (\\S+) 超时", "CDP $1 timed out"],
+  ["✗ (.+)", "✗ $1"],
+]).map(([re, rep]) => [new RegExp('^' + re + '$', 's'), rep]);
+const HAN_RE = /[㐀-鿿！-～　-〿]/;
+const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+function t(s, depth = 0){
+  if (LANG !== 'en' || typeof s !== 'string' || !HAN_RE.test(s) || depth > 4) return s;
+  const k = s.trim();
+  if (hasOwn(I18N_EN, k)) return s.replace(k, () => I18N_EN[k]);
+  for (const [re, rep] of I18N_EN_PATTERNS) {
+    if (!re.test(k)) continue;
+    // 捕获组（多为嵌套的服务端消息）也递归翻译
+    const out = k.replace(re, (...m) => rep.replace(/\$(\d)/g, (_, i) => t(m[+i] ?? '', depth + 1)));
+    return s.replace(k, () => out);
+  }
+  if (k.includes('\n')) return s.replace(k, () => k.split('\n').map(line => t(line, depth + 1)).join('\n'));
+  return s;
+}
+const I18N_ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
+const I18N_SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA']);
+function translateTree(root){
+  if (LANG !== 'en' || !root) return;
+  if (root.nodeType === 3) {
+    const p = root.parentElement;
+    if (p && !I18N_SKIP.has(p.tagName) && !p.closest('[data-no-i18n]')) {
+      const v = t(root.nodeValue);
+      if (v !== root.nodeValue) root.nodeValue = v;
+    }
+    return;
+  }
+  if (root.nodeType !== 1 || I18N_SKIP.has(root.tagName) || root.closest('[data-no-i18n]')) return;
+  const blocks = root.matches('[data-i18n]') ? [root] : [];
+  blocks.push(...root.querySelectorAll('[data-i18n]'));
+  for (const el of blocks) {
+    const html = I18N_EN_HTML[el.dataset.i18n];
+    if (html && !el.dataset.i18nDone) { el.innerHTML = html; el.dataset.i18nDone = '1'; }
+  }
+  for (const el of [root, ...root.querySelectorAll('*')]) {
+    for (const a of I18N_ATTRS) {
+      const v = el.getAttribute(a);
+      if (v && HAN_RE.test(v)) { const n = t(v); if (n !== v) el.setAttribute(a, n); }
+    }
+    // 仅翻译文本框里的默认示例内容；<option value> 等是提交给服务端的数据，不能动
+    if (el.tagName === 'INPUT' && el.type === 'text' && HAN_RE.test(el.defaultValue) && el.value === el.defaultValue) {
+      el.value = el.defaultValue = t(el.defaultValue);
+    }
+  }
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (w.nextNode()) if (HAN_RE.test(w.currentNode.nodeValue)) nodes.push(w.currentNode);
+  nodes.forEach(translateTree);
+}
+document.getElementById('langSel').value = LANG;
+if (LANG === 'en') {
+  document.documentElement.lang = 'en';
+  document.title = t(document.title);
+  translateTree(document.body);
+  new MutationObserver(muts => {
+    for (const m of muts) {
+      if (m.type === 'characterData') translateTree(m.target);
+      else if (m.type === 'attributes') translateTree(m.target);
+      else m.addedNodes.forEach(translateTree);
+    }
+  }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: I18N_ATTRS });
+  for (const fn of ['alert', 'confirm', 'prompt']) {
+    const orig = window[fn].bind(window);
+    window[fn] = (msg, ...rest) => orig(t(msg), ...rest);
+  }
+}
+
 /* ================= 基础 ================= */
 const $ = id => document.getElementById(id);
 const KEY_STORE = 'muse2api_key';
@@ -904,7 +1480,7 @@ function ago(ts){
   return Math.floor(s/86400) + ' 天前';
 }
 function cp(el){
-  const t = el.parentElement.innerText.replace(/^复制\n?/, '');
+  const t = el.parentElement.innerText.replace(/^(复制|Copy)\n?/, '');
   navigator.clipboard.writeText(t).then(() => toast('已复制', 'ok'));
 }
 
@@ -1621,12 +2197,13 @@ async function loadRepoStatus(force){
     }
 
     desc.innerHTML = `当前已部署版本：<code>${esc(lVer)}</code>（Commit: <code>${esc(s.local_sha || '—')}</code>） · ` +
-      `GitHub 官方仓库最新：<code>${esc(rVer)}</code>（Commit: <code>${esc(s.remote_sha || '—')}</code> ${esc(s.remote_msg || '')}）`;
+      `GitHub 官方仓库最新：<code>${esc(rVer)}</code>（Commit: <code>${esc(s.remote_sha || '—')}</code> <span>${esc(s.remote_msg || '')}</span>）`;
 
     let html = '';
-    if (Array.isArray(s.highlights) && s.highlights.length){
+    const highlights = (LANG === 'en' && Array.isArray(s.highlights_en) && s.highlights_en.length) ? s.highlights_en : s.highlights;
+    if (Array.isArray(highlights) && highlights.length){
       html += `<div style="margin-bottom:8px"><b style="color:var(--text)">✨ 当前版本核心特性 (${esc(rVer)})：</b><ul style="margin:4px 0 0 18px;padding:0;color:var(--muted)">` +
-        s.highlights.map(h => `<li>${esc(h)}</li>`).join('') + `</ul></div>`;
+        highlights.map(h => `<li>${esc(h)}</li>`).join('') + `</ul></div>`;
     }
     if (Array.isArray(s.recent_commits) && s.recent_commits.length){
       html += `<div><b style="color:var(--text)">📜 官方仓库最近提交动态：</b><div style="margin-top:5px;display:flex;flex-direction:column;gap:4px">` +
