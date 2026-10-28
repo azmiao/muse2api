@@ -324,8 +324,8 @@
     <div class="card">
       <h3>添加账号 <span class="tag">支持批量</span></h3>
       <div class="hint" data-i18n="add-account-hint">
-        从浏览器复制 <b>muse.ai</b> 的 Cookie 字符串粘贴进来即可。关键 cookie：
-        <code>hatch_sess</code>、<code>hatch_gw</code>、<code>hatch_vml</code>。
+        从浏览器复制 <b>muse.ai</b> 的 Cookie 字符串粘贴进来即可。必要 cookie：
+        <code>hatch_sess</code>、<code>hatch_vml</code>。
         批量导入时每行一个账号，格式 <code>标签 | cookie串</code>（标签可省略）。
       </div>
       <div class="row">
@@ -335,7 +335,7 @@
         </div>
         <div style="flex:3">
           <label>Cookie 字符串</label>
-          <textarea id="newCookie" rows="4" placeholder="hatch_sess=...; hatch_gw=...; hatch_vml=...&#10;或批量：&#10;acc-01 | hatch_sess=...; hatch_gw=...&#10;acc-02 | hatch_sess=...; hatch_gw=..."></textarea>
+          <textarea id="newCookie" rows="4" placeholder="hatch_sess=...; hatch_vml=...&#10;或批量：&#10;acc-01 | hatch_sess=...; hatch_vml=...&#10;acc-02 | hatch_sess=...; hatch_vml=..."></textarea>
         </div>
       </div>
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
@@ -372,7 +372,7 @@
       <div class="hint" data-i18n="ext-why-hint">
         用一个浏览器小扩展，把你<b>自己电脑上已经登录好的 muse.ai 登录态</b>同步过来。
         不用装 Python、不用开终端、不用敲命令。<br>
-        <b>为什么必须用扩展</b>：muse.ai 的 4 条核心 cookie 都带
+        <b>为什么必须用扩展</b>：muse.ai 的 2 条必要 cookie 都带
         <code>httpOnly</code> 标记，网页脚本（F12 里敲 <code>document.cookie</code>、
         小书签）读不到；只有浏览器扩展的 <code>cookies</code> 接口能拿到。
       </div>
@@ -468,7 +468,7 @@
         </div>
         <div style="flex:3">
           <label>Cookie 字符串</label>
-          <textarea id="mCookie" rows="3" placeholder="hatch_sess=...; hatch_gw=...; hatch_vml=...; hatch_native_auth_device=..."></textarea>
+          <textarea id="mCookie" rows="3" placeholder="hatch_sess=...; hatch_vml=..."></textarea>
         </div>
       </div>
       <div style="margin-top:12px">
@@ -506,9 +506,9 @@
         <thead><tr><th>cookie</th><th>httpOnly</th><th>实测有效期</th><th>作用</th></tr></thead>
         <tbody>
           <tr><td class="mono">hatch_sess</td><td>是</td><td><b style="color:var(--ok)">约 30 天</b></td><td>主会话，决定能不能登录</td></tr>
-          <tr><td class="mono">hatch_gw</td><td>是</td><td><b style="color:var(--ok)">约 1 年</b></td><td>网关令牌</td></tr>
+          <tr><td class="mono">hatch_gw</td><td>是</td><td><b style="color:var(--ok)">约 1 年</b></td><td>可选的网关路由缓存（不是登录必要项）</td></tr>
           <tr><td class="mono">hatch_vml</td><td>是</td><td><b style="color:var(--bad)">约 2 天</b></td><td data-i18n="vml-role">短效校验令牌，<b>决定账号寿命</b></td></tr>
-          <tr><td class="mono">hatch_native_auth_device</td><td>是</td><td><b style="color:var(--ok)">约 30 天</b></td><td>设备标识（匿名访客也有，不是登录凭证）</td></tr>
+          <tr><td class="mono">hatch_native_auth_device</td><td>是</td><td><b style="color:var(--ok)">约 30 天</b></td><td>可选设备标识（匿名访客也有，不是登录凭证）</td></tr>
         </tbody>
       </table></div>
       <div class="hint" style="margin:12px 0 0;line-height:1.85" data-i18n="lifetime-hint">
@@ -872,7 +872,7 @@ const I18N_EN = {
   "账号标签（单条导入用）": "Account label (single import)",
   "例如 muse-main": "e.g. muse-main",
   "Cookie 字符串": "Cookie string",
-  "hatch_sess=...; hatch_gw=...; hatch_vml=...\n或批量：\nacc-01 | hatch_sess=...; hatch_gw=...\nacc-02 | hatch_sess=...; hatch_gw=...": "hatch_sess=...; hatch_gw=...; hatch_vml=...\nor in batch:\nacc-01 | hatch_sess=...; hatch_gw=...\nacc-02 | hatch_sess=...; hatch_gw=...",
+  "hatch_sess=...; hatch_vml=...\n或批量：\nacc-01 | hatch_sess=...; hatch_vml=...\nacc-02 | hatch_sess=...; hatch_vml=...": "hatch_sess=...; hatch_vml=...\nor in batch:\nacc-01 | hatch_sess=...; hatch_vml=...\nacc-02 | hatch_sess=...; hatch_vml=...",
   "导入账号": "Import accounts",
   "清空": "Clear",
   "账号列表": "Accounts",
@@ -1189,9 +1189,9 @@ const I18N_EN_HTML = {
   "repo-status-desc": "Comparing your local version with the latest version in the official GitHub repository… (online upgrades keep your <code>.env</code> keys and the <code>data/</code> Account Pool and media data)",
   "auth-banner": "\n      <b>Enter your API Key first so the page can load data</b><br>\n      <span style=\"color:var(--muted)\">\n        The API Key is this service's own \"access password\". It stops other people from using your Muse account quota.\n        It is <b style=\"color:var(--text)\">not</b> your Muse password. It is a random string generated at deploy time (it starts with <code>m2a_</code>).<br>\n        Paste it into the box at the top right and click \"Save\". Your browser remembers it, so you won't need to enter it again.\n      </span>\n    ",
   "model-names-hint": "\n        Model names: <code>muse-spark</code> (chat/code), <code>muse-image</code> (images), <code>muse-video</code> (videos).\n        See the \"Integration Docs\" tab for full examples.\n      ",
-  "add-account-hint": "\n        Copy the <b>muse.ai</b> cookie string from your browser and paste it here. Key cookies:\n        <code>hatch_sess</code>, <code>hatch_gw</code>, <code>hatch_vml</code>.\n        For batch import, put one account per line in the format <code>label | cookie string</code> (label is optional).\n      ",
+  "add-account-hint": "\n        Copy the <b>muse.ai</b> cookie string from your browser and paste it here. Required cookies:\n        <code>hatch_sess</code>, <code>hatch_vml</code>.\n        For batch import, put one account per line in the format <code>label | cookie string</code> (label is optional).\n      ",
   "keepalive-hint": "The system runs <b>a silent background keep-alive every 30 minutes</b> and <b>fair multi-account rotation (LRU)</b>. \"Test\" actually opens muse.ai to verify the session.",
-  "ext-why-hint": "\n        A small browser extension syncs <b>the muse.ai login you already have on your own computer</b>.\n        No Python, no terminal, no commands.<br>\n        <b>Why an extension is required</b>: muse.ai's 4 core cookies are all marked\n        <code>httpOnly</code>, so page scripts (typing <code>document.cookie</code> in F12,\n        bookmarklets) can't read them. Only a browser extension's <code>cookies</code> API can.\n      ",
+  "ext-why-hint": "\n        A small browser extension syncs <b>the muse.ai login you already have on your own computer</b>.\n        No Python, no terminal, no commands.<br>\n        <b>Why an extension is required</b>: muse.ai's 2 required cookies are both marked\n        <code>httpOnly</code>, so page scripts (typing <code>document.cookie</code> in F12,\n        bookmarklets) can't read them. Only a browser extension's <code>cookies</code> API can.\n      ",
   "ext-unzip-hint": "\n            Unzip it to a folder you won't delete, e.g. <code>D:\\muse2api-extension</code>.\n          ",
   "ext-load-steps": "\n            <li>Type <code>chrome://extensions</code> in the address bar and press Enter</li>\n            <li>Turn on the <b>Developer mode</b> switch at the top right</li>\n            <li>Click <b>Load unpacked</b> at the top left</li>\n            <li>Select the <b>folder</b> you unzipped in step 1 (not a single file inside it)</li>\n          ",
   "ext-login-hint": "\n            First open <code>https://muse.ai/</code> in your own browser and log in\n            (until you can see the chat screen), then click the extension icon in the toolbar,\n            fill in the two values below, and click \"Read and import\".\n          ",

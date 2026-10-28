@@ -28,6 +28,7 @@ from typing import Any
 
 import asyncio
 import base64
+import binascii
 import io
 import hashlib
 import json
@@ -47,7 +48,10 @@ from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
 from pydantic import BaseModel, Field
 
 from config import CFG
-from engine import ESSENTIAL_COOKIES, MuseAuthError, MuseEngine, MuseGenerationError
+from engine import (ESSENTIAL_COOKIES, MAX_REFERENCE_IMAGE_BYTES,
+                    MAX_REFERENCE_IMAGES, MAX_REFERENCE_TOTAL_BYTES,
+                    MuseAuthError, MuseEngine, MuseGenerationError,
+                    MuseModelRefusalError, RefImageSafetyError)
 from store import Store, account_expiry, min_expiry
 
 import sys
@@ -59,7 +63,7 @@ if not log.handlers:
     log.addHandler(_h)
 
 CFG.ensure_dirs()
-app = FastAPI(title="muse2api", version="1.5.4")
+app = FastAPI(title="muse2api", version="1.6.4")
 
 # Cookie 助手脚本从 muse.ai 页面发起导入请求，需要放行该来源；
 # 浏览器扩展从 chrome-extension:// 发起，也一并放行。
@@ -435,6 +439,7 @@ class VideoRequest(BaseModel):
     timeout: int | None = None
     extra: str | None = None
     image: Any = None
+    images: list | None = None
     image_url: Any = None
     reference_image: str | None = None
 
@@ -493,8 +498,47 @@ class AccountPatch(BaseModel):
 
 
 # ------------------------- 提示词构造 -------------------------
+def _image_value(value: Any) -> str | None:
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, dict):
+        candidate = value.get("image_url") or value.get("url") or value.get("b64_json")
+        if isinstance(candidate, dict):
+            candidate = candidate.get("url")
+        return candidate.strip() if isinstance(candidate, str) and candidate.strip() else None
+    return None
+
+
+def _reference_list(images: list | None, legacy: list[Any], field: str) -> list[str]:
+    """Validate ordered image references and make legacy precedence explicit."""
+    primary = next((ref for value in legacy if (ref := _image_value(value))), None)
+    if primary and images:
+        raise HTTPException(400, f"{field} 不能与旧版单图字段同时使用")
+    if primary:
+        return [primary]
+    if images is None:
+        return []
+    if len(images) > MAX_REFERENCE_IMAGES:
+        raise HTTPException(400, f"{field} 最多 {MAX_REFERENCE_IMAGES} 张参考图")
+    refs = []
+    for index, value in enumerate(images):
+        ref = _image_value(value)
+        if not ref:
+            raise HTTPException(400, f"{field}[{index}] 不是有效图片引用")
+        refs.append(ref)
+    return refs
+
+
+def _image_references(req: ImageRequest) -> list[str]:
+    return _reference_list(req.images, [req.reference_image, req.image], "images")
+
+
+def _video_references(req: VideoRequest) -> list[str]:
+    return _reference_list(
+        req.images, [req.reference_image, req.image_url, req.image], "images")
+
 def build_image_prompt(r: ImageRequest) -> str:
-    has_ref = bool(r.reference_image or r.image or r.images)
+    has_ref = bool(_image_references(r))
     if has_ref:
         parts = [f"基于我本次上传附带的参考图片进行生图/编辑：{r.prompt.strip()}"]
     else:
@@ -724,24 +768,32 @@ def build_video_prompt(r: VideoRequest) -> str:
     ar = (r.aspect_ratio or "").strip().lower()
     sz = (r.size or "").strip().lower()
     dur = r.duration or 6
-    has_ref = bool(r.reference_image or r.image or r.image_url)
+    refs = _video_references(r)
+    has_ref = bool(refs)
+    reference_instruction = (
+        f"基于我本次上传的 {len(refs)} 张参考图片生成视频（以第一张作为主要起始画面，"
+        "其余图片作为主体、场景与风格参考，严禁使用历史图片或其他图像）"
+        if len(refs) > 1 else
+        "基于我本次上传的参考图片附件作为第一帧参考图（严禁使用历史图片或任何其他图像，"
+        "必须严格以我当前刚刚上传并附带在此处的这张图片为起始帧）"
+    )
 
     is_vertical = any(k in ar or k in sz for k in ("9:16", "9/16", "portrait", "竖屏", "720x1280", "1080x1920"))
 
     parts = []
     if is_vertical:
         if has_ref:
-            parts.append(f"基于我本次上传的参考图片附件作为第一帧参考图（严禁使用历史图片或任何其他图像，必须严格以我当前刚刚上传并附带在此处的这张图片为起始帧）：生成一个严格9:16竖屏手机满屏的动态图生视频（9:16 vertical portrait video，720x1280，高大于宽的手机全屏竖版画面，严格以附带的参考图为起始第一帧延续动作，严禁生成横屏或黑边，时长严格为 {dur} 秒）：{user_prompt}")
+            parts.append(f"{reference_instruction}：生成一个严格9:16竖屏手机满屏的动态图生视频（9:16 vertical portrait video，720x1280，高大于宽的手机全屏竖版画面，严禁生成横屏或黑边，时长严格为 {dur} 秒）：{user_prompt}")
         else:
             parts.append(f"全新文生视频创作（纯文本全新生成，严禁参考任何历史图片或上下文）：生成一个严格9:16竖屏手机满屏视频（9:16 vertical portrait video，720x1280，高大于宽的手机全屏竖版画面，严禁生成横屏或带有左右黑边，保持垂直构图，时长严格为 {dur} 秒）：{user_prompt}")
     elif any(k in ar or k in sz for k in ("16:9", "16/9", "landscape", "横屏", "1280x720", "1920x1080")):
         if has_ref:
-            parts.append(f"基于我本次上传的参考图片附件作为第一帧参考图（严禁使用历史图片或任何其他图像，必须严格以我当前刚刚上传并附带在此处的这张图片为起始帧）：生成一个16:9宽屏横屏图生视频（16:9 widescreen landscape video，严格以附带的参考图为起始第一帧延续动作，时长严格为 {dur} 秒）：{user_prompt}")
+            parts.append(f"{reference_instruction}：生成一个16:9宽屏横屏图生视频（16:9 widescreen landscape video，时长严格为 {dur} 秒）：{user_prompt}")
         else:
             parts.append(f"全新文生视频创作（纯文本全新生成，严禁参考任何历史图片或上下文）：生成一个16:9横屏宽屏视频（16:9 widescreen landscape video，时长严格为 {dur} 秒）：{user_prompt}")
     else:
         if has_ref:
-            parts.append(f"基于我本次上传的参考图片附件作为第一帧参考图（严禁使用历史图片或任何其他图像，必须严格以我当前刚刚上传并附带在此处的这张图片为起始帧）：生成动态图生视频（严格以附带的参考图为起始第一帧延续动作，时长严格为 {dur} 秒）：{user_prompt}")
+            parts.append(f"{reference_instruction}：生成动态图生视频（时长严格为 {dur} 秒）：{user_prompt}")
         else:
             parts.append(f"全新文生视频创作（纯文本全新生成，严禁参考任何历史图片或上下文）：生成一个视频（时长严格为 {dur} 秒）：{user_prompt}")
 
@@ -854,6 +906,7 @@ def _pos(v) -> bool:
 def _run_generation(prompt: str, kind: str, timeout: int,
                     account_id: str | None = None, on_progress=None,
                     reference_image: str | None = None,
+                    reference_images: list[str] | None = None,
                     on_acquired=None) -> tuple[dict, str | None]:
     # Browser ownership covers account selection, retry and cleanup, not just generate().
     deadline = time.monotonic() + max(1, timeout)
@@ -866,14 +919,17 @@ def _run_generation(prompt: str, kind: str, timeout: int,
             except Exception:
                 pass
         return _run_generation_locked(prompt, kind, timeout, account_id,
-                                      on_progress, reference_image, deadline=deadline)
+                                      on_progress, reference_image, reference_images,
+                                      deadline=deadline)
     finally:
         GEN_LOCK.release()
 
 
 def _run_generation_locked(prompt: str, kind: str, timeout: int,
                     account_id: str | None = None, on_progress=None,
-                    reference_image: str | None = None, deadline=None) -> tuple[dict, str | None]:
+                    reference_image: str | None = None,
+                    reference_images: list[str] | None = None,
+                    deadline=None) -> tuple[dict, str | None]:
     remaining_wait = int(deadline - time.monotonic()) if deadline is not None else timeout
     preferred_id = getattr(engine, "current_acc_id", None)
     if kind == "video" and not account_id:
@@ -896,7 +952,7 @@ def _run_generation_locked(prompt: str, kind: str, timeout: int,
             if deadline is not None and time.monotonic() >= deadline:
                 raise MuseGenerationError("任务总等待时限已到，停止重试")
             if attempt > 0:
-                if last_exc and "未产出媒体附件，仅返回了文本回复" in str(last_exc):
+                if isinstance(last_exc, MuseModelRefusalError):
                     break
                 old_id = cur_acc["id"] if cur_acc else None
                 if old_id:
@@ -920,10 +976,16 @@ def _run_generation_locked(prompt: str, kind: str, timeout: int,
                 remaining = int(deadline - time.monotonic()) if deadline is not None else timeout
                 if remaining <= 0:
                     raise MuseGenerationError("任务总等待时限已到，停止重试")
+                refs = list(reference_images or [])
+                engine_kwargs = {}
+                if len(refs) == 1 and not reference_image:
+                    reference_image = refs[0]
+                elif len(refs) > 1:
+                    engine_kwargs["reference_images"] = refs
                 res = engine.generate(cur_acc["cookies"], prompt, expect=kind,
                                       timeout=remaining, expires=cur_acc.get("cookies_exp"),
                                       account_id=cur_acc["id"], on_progress=on_progress,
-                                      reference_image=reference_image)
+                                      reference_image=reference_image, **engine_kwargs)
                 store.mark(cur_acc["id"], True, "")
                 _sync_cookies(cur_acc["id"])
                 return res, cur_acc["id"]
@@ -979,14 +1041,31 @@ def _image_response(req: ImageRequest, res: dict) -> dict:
     return {"created": int(time.time()), "data": [item]}
 
 
-def _queue_image(req: ImageRequest, prompt: str, reference_image: str | None,
+def _prepare_reference_images(images: list[str]) -> list[str]:
+    """Validate and snapshot all sources before a task is accepted."""
+    prepared = []
+    total_bytes = 0
+    for index, image in enumerate(images):
+        try:
+            b64, mime = engine._normalize_image(image)
+            data = base64.b64decode(b64, validate=True)
+        except (RefImageSafetyError, MuseGenerationError, binascii.Error, ValueError) as exc:
+            raise HTTPException(400, f"images[{index}]: {exc}") from exc
+        total_bytes += len(data)
+        if total_bytes > MAX_REFERENCE_TOTAL_BYTES:
+            raise HTTPException(400, "参考图总大小超过 24 MiB 限制")
+        prepared.append(f"data:{mime};base64,{b64}")
+    return prepared
+
+
+def _queue_image(req: ImageRequest, prompt: str, reference_images: list[str],
                  idempotency_key: str | None = None):
     """Opt-in polling avoids reverse-proxy timeouts; no generation is repeated by polling."""
     if idempotency_key and len(idempotency_key) > 256:
         raise HTTPException(400, "Idempotency-Key too long")
     key_hash = hashlib.sha256(idempotency_key.encode()).hexdigest() if idempotency_key else None
     request_hash = hashlib.sha256(json.dumps(
-        {"request": req.model_dump(by_alias=True), "reference": reference_image},
+        {"request": req.model_dump(by_alias=True), "references": reference_images},
         sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     with IMAGE_TASK_LOCK:
         tasks = list(store.tasks.values())
@@ -1018,7 +1097,7 @@ def _queue_image(req: ImageRequest, prompt: str, reference_image: str | None,
         try:
             res, acc_id = _run_generation(
                 prompt, "image", req.timeout or CFG.image_timeout,
-                reference_image=reference_image,
+                reference_images=reference_images,
                 on_progress=lambda p: store.update_task(tid, progress=p),
                 on_acquired=_on_acquired)
             # Store only media metadata, not large base64 payloads or reference credentials.
@@ -1040,13 +1119,8 @@ def _queue_image(req: ImageRequest, prompt: str, reference_image: str | None,
 @app.post("/v1/images/tasks")
 def create_image_task(req: ImageRequest,
                       idempotency_key: str | None = Header(default=None), _=Depends(auth)):
-    ref_img = req.reference_image or req.image
-    if isinstance(ref_img, dict):
-        ref_img = ref_img.get("url") or ref_img.get("b64_json")
-    if not ref_img and req.images:
-        first = req.images[0]
-        ref_img = first.get("image_url") or first.get("url") if isinstance(first, dict) else first
-    return _queue_image(req, build_image_prompt(req), ref_img, idempotency_key)
+    refs = _prepare_reference_images(_image_references(req))
+    return _queue_image(req, build_image_prompt(req), refs, idempotency_key)
 
 
 @app.get("/v1/images/tasks/{task_id}")
@@ -1064,19 +1138,16 @@ def get_image_task(task_id: str, _=Depends(auth)):
 
 @app.post("/v1/images/generations")
 async def images_generations(req: ImageRequest, _=Depends(auth)):
-    ref_img = req.reference_image or req.image
-    if isinstance(ref_img, dict):
-        ref_img = ref_img.get("url") or ref_img.get("b64_json")
-    if not ref_img and req.images and isinstance(req.images, list):
-        first = req.images[0]
-        ref_img = first.get("image_url") or first.get("url") if isinstance(first, dict) else first
+    ref_images = await asyncio.to_thread(
+        _prepare_reference_images, _image_references(req))
 
     prompt = build_image_prompt(req)
     timeout = req.timeout or CFG.image_timeout
     if req.async_:
-        return _queue_image(req, prompt, ref_img)
+        return _queue_image(req, prompt, ref_images)
     try:
-        res, _acc = await asyncio.to_thread(_run_generation, prompt, "image", timeout, reference_image=ref_img)
+        res, _acc = await asyncio.to_thread(
+            _run_generation, prompt, "image", timeout, reference_images=ref_images)
     except MuseAuthError as exc:
         raise HTTPException(401, str(exc)) from exc
     except MuseGenerationError as exc:
@@ -1094,11 +1165,12 @@ async def images_edits(request: Request, _=Depends(auth)):
     aspect_ratio = None
     response_format = "url"
     timeout = None
-    ref_image_data = None
+    ref_image_data: list[str] = []
     async_mode = False
 
     if "multipart/form-data" in content_type:
-        form = await request.form()
+        form = await request.form(
+            max_files=MAX_REFERENCE_IMAGES, max_fields=20)
         async_mode = form.get("async", False)
         prompt = form.get("prompt") or ""
         model = form.get("model") or "muse-image"
@@ -1111,13 +1183,27 @@ async def images_edits(request: Request, _=Depends(auth)):
                 timeout = int(timeout_val)
             except ValueError:
                 pass
-        img_field = form.get("image")
-        if img_field and hasattr(img_field, "read"):
-            content = await img_field.read()
-            ref_mime = getattr(img_field, "content_type", "image/png") or "image/png"
-            ref_image_data = f"data:{ref_mime};base64,{base64.b64encode(content).decode('ascii')}"
-        elif isinstance(img_field, str):
-            ref_image_data = img_field
+        img_fields = form.getlist("image")
+        if len(img_fields) > MAX_REFERENCE_IMAGES:
+            raise HTTPException(400, f"image 最多 {MAX_REFERENCE_IMAGES} 张参考图")
+        total_upload_bytes = 0
+        for index, img_field in enumerate(img_fields):
+            if img_field and hasattr(img_field, "read"):
+                ref_mime = getattr(img_field, "content_type", "image/png") or "image/png"
+                if not ref_mime.lower().startswith("image/"):
+                    raise HTTPException(400, f"image[{index}] 不是图片文件")
+                content = await img_field.read(MAX_REFERENCE_IMAGE_BYTES + 1)
+                if len(content) > MAX_REFERENCE_IMAGE_BYTES:
+                    raise HTTPException(400, f"image[{index}] 超过 10 MiB 限制")
+                total_upload_bytes += len(content)
+                if total_upload_bytes > MAX_REFERENCE_TOTAL_BYTES:
+                    raise HTTPException(400, "参考图总大小超过 24 MiB 限制")
+                ref_image_data.append(
+                    f"data:{ref_mime};base64,{base64.b64encode(content).decode('ascii')}")
+            elif isinstance(img_field, str) and img_field.strip():
+                ref_image_data.append(img_field.strip())
+            else:
+                raise HTTPException(400, f"image[{index}] 不是有效图片引用")
     else:
         body = await request.json()
         async_mode = body.get("async", False)
@@ -1127,19 +1213,11 @@ async def images_edits(request: Request, _=Depends(auth)):
         aspect_ratio = body.get("aspect_ratio")
         response_format = body.get("response_format") or "url"
         timeout = body.get("timeout")
-        img_val = body.get("image")
-        if isinstance(img_val, dict):
-            ref_image_data = img_val.get("url") or img_val.get("b64_json")
-        elif isinstance(img_val, str):
-            ref_image_data = img_val
-        if not ref_image_data and body.get("images") and isinstance(body.get("images"), list):
-            first = body["images"][0]
-            if isinstance(first, dict):
-                ref_image_data = first.get("image_url") or first.get("url")
-            elif isinstance(first, str):
-                ref_image_data = first
-        if not ref_image_data:
-            ref_image_data = body.get("reference_image") or body.get("image_url")
+        raw_images = body.get("images")
+        if raw_images is not None and not isinstance(raw_images, list):
+            raise HTTPException(400, "images 必须是数组")
+        legacy = [body.get("reference_image"), body.get("image_url"), body.get("image")]
+        ref_image_data = _reference_list(raw_images, legacy, "images")
 
     if not prompt:
         prompt = "参考此图片并进行生图创作"
@@ -1151,15 +1229,19 @@ async def images_edits(request: Request, _=Depends(auth)):
         aspect_ratio=aspect_ratio,
         response_format=response_format,
         timeout=timeout,
-        reference_image=ref_image_data,
+        images=ref_image_data,
         **{"async": async_mode}
     )
+    ref_image_data = await asyncio.to_thread(
+        _prepare_reference_images, ref_image_data)
     full_prompt = build_image_prompt(req_obj)
     gen_timeout = timeout or CFG.image_timeout
     if req_obj.async_:
         return _queue_image(req_obj, full_prompt, ref_image_data)
     try:
-        res, _acc = await asyncio.to_thread(_run_generation, full_prompt, "image", gen_timeout, reference_image=ref_image_data)
+        res, _acc = await asyncio.to_thread(
+            _run_generation, full_prompt, "image", gen_timeout,
+            reference_images=ref_image_data)
     except MuseAuthError as exc:
         raise HTTPException(401, str(exc)) from exc
     except MuseGenerationError as exc:
@@ -1172,13 +1254,8 @@ async def images_edits(request: Request, _=Depends(auth)):
 @app.post("/v1/videos")
 @app.post("/v1/videos/generations")
 async def create_video(req: VideoRequest, _=Depends(auth)):
-    ref_img = None
-    if req.reference_image:
-        ref_img = req.reference_image
-    elif req.image_url:
-        ref_img = req.image_url if isinstance(req.image_url, str) else (req.image_url.get("url") if isinstance(req.image_url, dict) else None)
-    elif req.image:
-        ref_img = req.image.get("url") if isinstance(req.image, dict) else req.image
+    ref_images = await asyncio.to_thread(
+        _prepare_reference_images, _video_references(req))
 
     prompt = build_video_prompt(req)
     timeout = req.timeout or CFG.video_timeout
@@ -1196,7 +1273,7 @@ async def create_video(req: VideoRequest, _=Depends(auth)):
             def prog_cb(p):
                 store.update_task(task["id"], progress=p)
             res, acc_id = _run_generation(prompt, "video", timeout, on_progress=prog_cb,
-                                          reference_image=ref_img, on_acquired=_on_acquired)
+                                          reference_images=ref_images, on_acquired=_on_acquired)
             vurl = media_url(res["filename"])
             store.update_task(task["id"], status="completed", progress=100, account=acc_id,
                               elapsed=round(time.time() - timing["t0"], 1),
@@ -1227,9 +1304,8 @@ def get_video(task_id: str, _=Depends(auth)):
     if out.get("status") == "completed":
         out["progress"] = 100
     elif out.get("status") == "processing":
-        elapsed = time.time() - out.get("created_at", time.time())
-        calc_prog = min(92, int(20 + elapsed * 1.1))
-        out["progress"] = max(out.get("progress", 0) or 0, calc_prog)
+        # Progress reports observed milestones only; Muse exposes no percentage.
+        out["progress"] = max(out.get("progress", 0) or 0, 15)
     vurl = out.get("url")
     if not vurl and isinstance(out.get("result"), dict):
         vurl = out["result"].get("url")
@@ -1894,10 +1970,12 @@ def extension_zip():
         raise HTTPException(404, "扩展目录缺失")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        for name in sorted(os.listdir(src)):
-            p = os.path.join(src, name)
-            if os.path.isfile(p):
-                z.write(p, os.path.join("muse2api-extension", name))
+        for root, dirs, names in os.walk(src):
+            dirs.sort()
+            for name in sorted(names):
+                p = os.path.join(root, name)
+                relative_path = os.path.relpath(p, src).replace(os.sep, "/")
+                z.write(p, f"muse2api-extension/{relative_path}")
     buf.seek(0)
     return Response(
         content=buf.getvalue(),
@@ -1913,8 +1991,13 @@ def extension_files():
     src = os.path.join(BASE_DIR, "extension")
     if not os.path.isdir(src):
         raise HTTPException(404, "扩展目录缺失")
-    return {"files": sorted(f for f in os.listdir(src)
-                            if os.path.isfile(os.path.join(src, f)))}
+    files = []
+    for root, dirs, names in os.walk(src):
+        dirs.sort()
+        for name in sorted(names):
+            p = os.path.join(root, name)
+            files.append(os.path.relpath(p, src).replace(os.sep, "/"))
+    return {"files": sorted(files)}
 
 
 # ------------------------- 管理：任务 / 媒体 -------------------------

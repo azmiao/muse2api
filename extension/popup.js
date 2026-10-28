@@ -1,15 +1,15 @@
 /* Muse2API Cookie 导入 —— 读取 muse.ai 的 cookie 并 POST 到 muse2api 服务。
  *
  * 关键点：用 chrome.cookies 而不是 document.cookie。
- * muse.ai 的 4 条核心 cookie（hatch_sess / hatch_gw / hatch_vml /
- * hatch_native_auth_device）都带 httpOnly，网页 JS 读不到，
- * 只有浏览器扩展的 cookies 接口能拿到。
+ * muse.ai 的关键会话 cookie（hatch_sess / hatch_vml）带 httpOnly，
+ * 网页 JS 读不到，只有浏览器扩展的 cookies 接口能拿到。
+ * hatch_gw 是可重新签发的路由缓存，不应阻止账号导入。
  */
 
 const $ = (id) => document.getElementById(id);
 const STORE = 'muse2api_ext_cfg';
 
-const ESSENTIAL = ['hatch_sess', 'hatch_gw', 'hatch_vml', 'hatch_native_auth_device'];
+const ESSENTIAL = ['hatch_sess', 'hatch_vml'];
 
 /* ================= 界面语言 / UI language =================
  * 中文是源语言；英文通过下面的词典替换。

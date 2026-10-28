@@ -26,12 +26,12 @@
   - 内置模型智能别名映射，`gpt-4o`、`gpt-5`、`claude-sonnet-4`、`deepseek-chat` 等常用模型名自动路由。
 - 🎨 **高质量生图与图像编辑（Images Generations & Edits）**
   - 完全兼容 `/v1/images/generations`（文生图）与 `/v1/images/edits`（图生图/参考图编辑）接口。
-  - 支持 `1:1`、`16:9`、`9:16`、`4:3`、`3:4` 等多画幅生成，支持参考图直传与去水印纯净输出。
+  - 支持 `1:1`、`16:9`、`9:16`、`4:3`、`3:4` 等多画幅生成，支持单图或多图参考直传与去水印纯净输出。
   - 支持 `url` 直链或 `b64_json` 两种返回格式，内置纯文本拒答秒级快速检测，杜绝队列死锁。
   - 图生图仅返回本次新生成的媒体：排除上传预览与历史附件，下载绑定选中的结果；参考图上传或提示词发送未确认时明确报错，不再静默返回原图。
 - 🎬 **文生视频 / 图生视频（Videos）**
   - 原生对接 Muse 顶配视频生成模型，可传递 5 秒 / 6 秒 / 8 秒 / 10 秒的时长请求（实际成片时长以 Muse 上游输出为准）及 `9:16` 竖屏 / `16:9` 横屏视频生成。
-  - 支持上传首帧参考图（Data URL / HTTP URL）进行严格首帧图生视频创作。
+  - 支持上传单张首帧参考图，或通过 `images` 数组上传多张内容与风格参考图；多图模式以第一张作为主要起始画面。
   - 异步任务架构（`/v1/videos` 创建任务 + `/v1/videos/{task_id}` 状态轮询）。
   - 内置媒体资源服务 `/v1/media/{filename}`，自动持久化存储生成的 MP4 / WebP 资源。
 - ⚡ **真多账号并行并发（Multi-Account Parallel Execution）**
@@ -195,6 +195,33 @@ curl -X POST "http://localhost:18610/v1/images/generations" \
 }
 ```
 
+多图参考使用 `images` 数组（最多 4 张；单张不超过 10 MiB、合计不超过 24 MiB）；服务会按数组顺序逐张上传，并在全部附件得到网页确认后才发送提示词。`images` 不可与 `image` / `reference_image` 等旧版单图字段混用：
+
+```bash
+curl -X POST "http://localhost:18610/v1/images/generations" \
+  -H "Authorization: Bearer m2a_your_secret_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "muse-image",
+    "prompt": "结合第一张图的主体与第二张图的配色生成海报",
+    "images": [
+      {"url": "https://example.com/subject.png"},
+      {"url": "https://example.com/style.png"}
+    ],
+    "response_format": "url"
+  }'
+```
+
+`/v1/images/edits` 的 multipart 请求可以重复提交同名的 `image` 字段：
+
+```bash
+curl -X POST "http://localhost:18610/v1/images/edits" \
+  -H "Authorization: Bearer m2a_your_secret_key" \
+  -F "prompt=结合两张参考图生成一张新图" \
+  -F "image=@subject.png" \
+  -F "image=@style.png"
+```
+
 ### 3. 文生视频 / 图生视频（Videos）
 
 - **第一步：创建生成任务**
@@ -209,6 +236,22 @@ curl -X POST "http://localhost:18610/v1/images/generations" \
     }'
   ```
   返回任务 ID：`{"id": "task_xyz789", "status": "queued"}`
+
+  多图参考视频在同一个请求中使用有序的 `images` 数组；这里支持的是多张图片作为视频参考，不支持上传视频文件作为参考：
+  ```bash
+  curl -X POST "http://localhost:18610/v1/videos" \
+    -H "Authorization: Bearer m2a_your_secret_key" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "prompt": "让第一张图的主体在第二张图的场景与配色中运动",
+      "images": [
+        {"url": "https://example.com/start.png"},
+        {"url": "https://example.com/style.png"}
+      ],
+      "duration": 6,
+      "size": "16:9"
+    }'
+  ```
 
 - **第二步：轮询任务进度**
   ```bash
@@ -243,6 +286,17 @@ curl -X POST "http://localhost:18610/v1/images/generations" \
 | `MUSE2API_IMAGE_TIMEOUT` | `240` | 生图超时上限（秒） |
 | `MUSE2API_VIDEO_TIMEOUT` | `600` | 生视频超时上限（秒） |
 | `MUSE2API_CHAT_TIMEOUT` | `300` | 对话生成超时上限（秒） |
+| `MUSE2API_REF_IMAGE_LOCAL_FILES` | `0` | 默认禁止读取服务器本地路径；仅可信单用户部署可显式设为 `1` 恢复 |
+| `MUSE2API_REF_IMAGE_PRIVATE_FETCH` | `0` | 默认仅允许公网 URL，并逐跳检查 DNS/重定向、固定已检查 IP、不使用环境代理；显式设为 `1` 才允许私网/本机 URL |
+
+两个开关默认均为 `0`：所有生图、图像编辑、图片任务及视频接口都禁止服务器本地路径和私网/本机 URL。Data URL、有效 Base64 和公网 URL 正常使用。只有确认调用方可信且确有需要时，才显式设为 `1` 恢复对应旧能力。
+策略拒绝、下载失败、MIME 或大小不合规都会在提交任务前返回 HTTP 400，不会创建一个随后才失败的后台任务。
+
+参考图安全回归检查（模拟 DNS 和 HTTP，无真实网络或账号）：
+
+```bash
+python tests/test_ref_image_safety.py
+```
 
 ---
 
@@ -272,6 +326,8 @@ curl -X POST "http://localhost:18610/v1/images/generations" \
 - 🌟 **[@wuliaolaozi](https://github.com/wuliaolaozi)** (PR [#27](https://github.com/czg86389-hub/muse2api/pull/27)) —— 适配中英文额度查询，修复额度读取与管理页错误提示
 - 🌟 **[@CarloCPP](https://github.com/CarloCPP)** (PR [#6](https://github.com/czg86389-hub/muse2api/pull/6), [#26](https://github.com/czg86389-hub/muse2api/pull/26)) —— 贡献 Tampermonkey 油猴一键导号脚本、放宽必要 Cookie 校验至 session 凭证与一键安装
 - 🌟 **[@gr219](https://github.com/gr219)** (PR [#31](https://github.com/czg86389-hub/muse2api/pull/31)) —— 为管理后台及 Chrome 扩展提供中英文国际化双语动态切换支持
+- 🌟 **[@Yeadon8888](https://github.com/Yeadon8888)** (PR [#32](https://github.com/czg86389-hub/muse2api/pull/32)) —— 增加有序多参考图生图、编辑与图生视频支持
+- 🌟 **[@pandalaohe](https://github.com/pandalaohe)** (PR [#24](https://github.com/czg86389-hub/muse2api/pull/24)) —— 提供参考图本地文件与私网 URL 安全策略、重定向复查和 DNS 重绑定防护
 
 欢迎大家提交 PR 与 Issue，共同把项目打磨得更强更好用！
 
@@ -302,7 +358,7 @@ python tests/test_media_selection.py
 同步 OpenAI 图片接口仍保留兼容，但 CDN/客户端可能在生成结束前截断长请求。
 生产客户端应使用短提交 + 轮询，而不是延长 HTTP 超时后重复生成：
 
-1. `POST /v1/images/tasks`：JSON 与 `/v1/images/generations` 相同，可用 `reference_image` 传入图生图参考；建议添加稳定的 `Idempotency-Key` 请求头。
+1. `POST /v1/images/tasks`：JSON 与 `/v1/images/generations` 相同，可用 `reference_image` 传入单张参考图，或用 `images` 数组传入多张参考图；建议添加稳定的 `Idempotency-Key` 请求头。
 2. 接收 HTTP 202 和 `id`，每 3 秒调用 `GET /v1/images/tasks/{id}`。
 3. `status=completed` 时读取 `url` 或 `data[0]`；`status=failed` 时显示 `error`。查询失败只重试查询，不要重新 POST 生图。
 4. 相同幂等键及相同输入返回原任务；同键不同输入返回 409；队列满返回 429。一个进程共享一个浏览器，最多接收 8 个未结束图片任务。

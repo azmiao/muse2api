@@ -3,9 +3,9 @@
 """muse2api Cookie 助手 —— 一键把 muse.ai 的登录 cookie 导入账号池。
 
 为什么需要这个脚本？
-    muse.ai 的 4 条核心 cookie（hatch_sess / hatch_gw / hatch_vml /
-    hatch_native_auth_device）全部带 httpOnly 标记，网页里的 document.cookie
-    读不到它们。只有从浏览器底层（Chrome DevTools Protocol）才能读到。
+    muse.ai 的关键会话 cookie（hatch_sess / hatch_vml）带 httpOnly 标记，
+    网页里的 document.cookie 读不到它们。只有从浏览器底层
+    （Chrome DevTools Protocol）才能读到。hatch_gw 是可重新签发的路由缓存。
     所以没法用「小书签」或「控制台一行代码」解决，必须让脚本驱动浏览器。
 
 它是怎么工作的？
@@ -45,7 +45,7 @@ import urllib.request
 
 SITE = "https://muse.ai/"
 CDP_PORT = 9333
-ESSENTIAL = ("hatch_sess", "hatch_gw", "hatch_vml", "hatch_native_auth_device")
+ESSENTIAL = ("hatch_sess", "hatch_vml")
 DOMAIN_HINT = "muse.ai"
 
 

@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,3 +46,66 @@ with tempfile.TemporaryDirectory() as profile:
         raise AssertionError("undelivered video request waited for the full timeout")
 
 print("PASS: composer readiness and undelivered video fast-fail")
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+    def time(self):
+        return self.now
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def wait_case(states, timeout=600, expect="video"):
+    clock = FakeClock()
+    calls = {"n": 0}
+    def js(_script):
+        index = min(calls["n"], len(states) - 1)
+        calls["n"] += 1
+        state = dict(states[index])
+        state.setdefault("cnt", 0)
+        state.setdefault("txt", "")
+        state.setdefault("stop", False)
+        state.setdefault("tail", "")
+        state.setdefault("path", "/thread/new")
+        return json.dumps(state)
+    page = SimpleNamespace(js=js)
+    e = engine_module.MuseEngine(SimpleNamespace(profile_dir=tempfile.gettempdir()))
+    e.page = page
+    e.attachments = lambda: []
+    e._scroll_bottom = lambda: None
+    with patch.object(engine_module, "time", clock):
+        return e._wait_attachment("", timeout, expect)
+
+
+refusal = "视频没生成成功：你这个账号所在的国家/地区目前不支持视频生成，这是持续限制。"
+try:
+    wait_case([
+        {"stop": True, "tail": "正在处理", "path": "/thread/new"},
+        {"stop": False, "tail": refusal, "path": "/thread/new"},
+    ])
+except engine_module.MuseModelRefusalError as exc:
+    assert refusal in str(exc), str(exc)
+else:
+    raise AssertionError("explicit region refusal was not returned promptly")
+
+# Generic page chrome containing region/video words is not sufficient evidence.
+assert engine_module.MuseEngine._media_refusal_text(
+    "Settings\\nRegion: US\\nVideo", "video") == ""
+
+# A completed submission that remains idle on /thread/new stops before 600s,
+# but only after the Stop lifecycle and a long quiet period.
+try:
+    wait_case([
+        {"stop": True, "tail": "", "path": "/thread/new"},
+        {"stop": False, "tail": "", "path": "/thread/new"},
+    ])
+except engine_module.MuseGenerationError as exc:
+    assert "未建立视频任务线程" in str(exc), str(exc)
+else:
+    raise AssertionError("idle /thread/new task waited for full timeout")
+
+# No observed submission lifecycle must not trigger the early no-thread error.
+assert wait_case([{"stop": False, "tail": "", "path": "/thread/new"}], timeout=20) is None
+print("PASS: explicit refusal propagated; idle no-thread stopped; normal wait preserved")
